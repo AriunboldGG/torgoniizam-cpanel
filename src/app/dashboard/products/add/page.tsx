@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import { Plus, X, ExternalLink, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,66 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const categories = [
-  { value: "АВТОМАШИН", label: "АВТОМАШИН (Car)" },
-  { value: "ГАР УТАС & ТАБЛЕТ", label: "ГАР УТАС & ТАБЛЕТ (Mobile Phone & Tablet)" },
-  { value: "КОМПЬЮТЕР", label: "КОМПЬЮТЕР (Computer)" },
-  { value: "ҮНЭТ ЭДЛЭЛ", label: "ҮНЭТ ЭДЛЭЛ (Jewelry)" },
-  { value: "ЦАХИЛГААН БАРАА", label: "ЦАХИЛГААН БАРАА (Electronics)" },
-];
-
-const carBrands = [
-  "Toyota","Lexus","Mercedes-Benz","Nissan","Subaru","Ford","Mitsubishi",
-  "Hyundai","Land Rover","BMW","Jeep","Honda","Mazda","BYD","Volkswagen",
-  "Suzuki","Kia","Geely","Audi","Porsche","Бусад","Chevrolet","Renault",
-  "Changan","MG","SsangYong","Dodge","Dongfeng","Jetour","Tesla",
-  "GWM Tank","Infiniti","Daihatsu","Hummer","MINI","Foton","Haval",
-  "Baic","Huawei","Isuzu","Lincoln","Wuling","Acura","Bentley",
-  "Cadillac","Chery","Fiat","GMC","Jaguar","Kaiyi","Lada","Li Auto",
-  "Samsung","UAZ","Volvo",
-];
-
-const phoneBrands = [
-  "iPhone","Samsung","Xiaomi","Huawei","iPad","Oppo","Vivo","OnePlus",
-  "Realme","Nokia","Motorola","Sony","Google Pixel","Asus","Lenovo",
-  "Бусад",
-];
-
-const computerBrands = [
-  "Суурин компьютер",
-  "Notebook",
-  "PS, XBox, Nintendo",
-  "Принтер, хувилагч, сканнер, ламинатор",
-  "Сэлбэг",
-  "iPad, tablet, kindle",
-  "Принтер, хувилагчийн хор",
-  "Чихэвч, 3D шил",
-  "Дагалдах хэрэгсэл",
-];
-
-const jewelryBrands = [
-  "Алт",
-  "Мөнгө",
-  "Цагаан алт",
-  "Хүрэл",
-  "Эрдэнийн чулуу",
-  "Алтан эдлэл",
-  "Бусад",
-];
-
-const electronicsBrands = [
-  "Фото, видео камер",
-  "TV, Audio + Video",
-  "Гал тогооны цахилгаан бараа",
-  "Тэнь, халаагуур",
-  "Угаалгын машин",
-  "Тоос сорогч, хивс угаагч, индүү",
-  "Агааржуулагч, сэнс",
-  "Оёдлын машин",
-  "Хөргөгч, хөлдөөгч",
-  "Цахилгаан барааны дагалдах хэрэгсэл",
-  "Бусад",
-];
+type Category = { key: number | string; value: string };
 
 const carFieldOptions = {
   condition: ["Шинэ", "Хуучин"],
@@ -113,14 +53,14 @@ function computeStartDateOptions() {
 
 export default function AddProductPage() {
   const router = useRouter();
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [previews, setPreviews] = useState<string[]>([]);
-  const [dragging, setDragging] = useState(false);
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [urlInput, setUrlInput] = useState("");
   const [price, setPrice] = useState("");
   const [category, setCategory] = useState("");
   const [subCategory, setSubCategory] = useState("");
-  const [brandSearch, setBrandSearch] = useState("");
-  const [brandOpen, setBrandOpen] = useState(false);
+  const [childCategories, setChildCategories] = useState<Category[]>([]);
+  const [childLoading, setChildLoading] = useState(false);
+  const [subCategoryKey, setSubCategoryKey] = useState<number | string>("");
   const [imei, setImei] = useState("");
   const [imeiStatus, setImeiStatus] = useState<"idle" | "checking" | "valid" | "invalid">("idle");
   const [carFields, setCarFields] = useState<Record<string, string>>({
@@ -132,22 +72,84 @@ export default function AddProductPage() {
   const setCarField = (key: string, val: string) =>
     setCarFields((prev) => ({ ...prev, [key]: val }));
 
-  const isPhone = category === "ГАР УТАС & ТАБЛЕТ";
-  const isCar = category === "АВТОМАШИН";
-  const isComputer = category === "КОМПЬЮТЕР";
-  const isJewelry = category === "ҮНЭТ ЭДЛЭЛ";
-  const isElectronics = category === "ЦАХИЛГААН БАРАА";
-  const showImei = isPhone && (subCategory === "iPhone" || subCategory === "iPad");
+  // ── Dynamic categories from API ──
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [catsLoading, setCatsLoading] = useState(true);
 
-  const activeBrands = isCar ? carBrands
-    : isPhone ? phoneBrands
-    : isComputer ? computerBrands
-    : isJewelry ? jewelryBrands
-    : isElectronics ? electronicsBrands
-    : [];
-  const filteredBrands = activeBrands.filter((b) =>
-    b.toLowerCase().includes(brandSearch.toLowerCase())
-  );
+  // ── Form fields ──
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [bidIncrement, setBidIncrement] = useState("10000");
+  const [duration, setDuration] = useState("");
+  const [categoryKey, setCategoryKey] = useState<number | string>("");
+
+
+  // ── Submission ──
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    if (!token) { setCatsLoading(false); return; }
+    fetch("/api/categories", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((data) => {
+        const raw: { id?: unknown; key?: unknown; name?: unknown; value?: unknown }[] =
+          Array.isArray(data) ? data
+          : Array.isArray(data?.data) ? data.data
+          : Array.isArray(data?.results) ? data.results
+          : (Object.values(data ?? {}).find((v) => Array.isArray(v)) as typeof raw) ?? [];
+        const list: Category[] = raw.map((item) => ({
+          key: (item.key ?? item.id ?? "") as number | string,
+          value: String(item.value ?? item.name ?? ""),
+        }));
+        setCategories(list);
+      })
+      .catch(() => {})
+      .finally(() => setCatsLoading(false));
+  }, []);
+
+  // Fetch child categories whenever a parent category is selected
+  useEffect(() => {
+    if (!categoryKey) { setChildCategories([]); setSubCategory(""); setSubCategoryKey(""); return; }
+    const token = localStorage.getItem("access_token");
+    if (!token) return;
+    setChildLoading(true);
+    setSubCategory("");
+    setSubCategoryKey("");
+    fetch(`/api/categories/${categoryKey}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((data) => {
+        console.log("[child cats raw]", data);
+        const raw: { id?: unknown; key?: unknown; name?: unknown; value?: unknown }[] =
+          Array.isArray(data) ? data
+          : Array.isArray(data?.data) ? data.data
+          : Array.isArray(data?.results) ? data.results
+          : (Object.values(data ?? {}).find((v) => Array.isArray(v)) as typeof raw) ?? [];
+        const list: Category[] = raw.map((item) => {
+          // mongolica {key, value} format: key=label, value=numeric ID
+          // plain {id, name} format: id=numeric ID, name=label
+          const hasKeyValue = item.key !== undefined && item.value !== undefined;
+          return {
+            key: hasKeyValue
+              ? (item.value as number | string)   // use value as the ID to submit
+              : (item.id ?? item.key ?? "") as number | string,
+            value: hasKeyValue
+              ? String(item.key)                   // use key as display name
+              : String(item.name ?? item.value ?? ""),
+          };
+        });
+        setChildCategories(list);
+      })
+      .catch(() => {})
+      .finally(() => setChildLoading(false));
+  }, [categoryKey]);
+
+  const catUpper = category.toUpperCase();
+  const isCar = catUpper.includes("АВТО") || catUpper.includes("CAR") || catUpper.includes("МАШИН");
+  const isPhone = catUpper.includes("УТАС") || catUpper.includes("PHONE");
+  const showImei = isPhone && (subCategory.toLowerCase().includes("iphone") || subCategory.toLowerCase().includes("ipad"));
 
   async function checkImei() {
     if (imei.length < 15) return;
@@ -168,26 +170,98 @@ export default function AddProductPage() {
   const auctionStartingPrice = priceNum + systemFee;
   const startDateOptions = computeStartDateOptions();
 
-  const handleFiles = (files: FileList | File[]) => {
-    const incoming = Array.from(files).slice(0, 10 - previews.length);
-    const urls = incoming.map((f) => URL.createObjectURL(f));
-    setPreviews((prev) => [...prev, ...urls]);
-  };
-
-  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) handleFiles(e.target.files);
-    e.target.value = "";
-  };
-
-  const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setDragging(false);
-    if (e.dataTransfer.files) handleFiles(e.dataTransfer.files);
+  const addImageUrl = () => {
+    const url = urlInput.trim();
+    if (!url || imageUrls.includes(url)) return;
+    setImageUrls((prev) => [...prev, url]);
+    setUrlInput("");
   };
 
   const removeImage = (idx: number) => {
-    setPreviews((prev) => prev.filter((_, i) => i !== idx));
+    setImageUrls((prev) => prev.filter((_, i) => i !== idx));
   };
+
+  async function handleSubmit() {
+    setSubmitError("");
+    if (!name.trim()) { setSubmitError("Бүтээгдэхүүний нэр оруулна уу."); return; }
+    if (!categoryKey) { setSubmitError("Ангилал сонгоно уу."); return; }
+    if (!price) { setSubmitError("Үнэ оруулна уу."); return; }
+    if (!duration) { setSubmitError("Үргэлжлэх хугацаа сонгоно уу."); return; }
+    if (!startDate || !startTime) { setSubmitError("Эхлэх огноо болон цаг сонгоно уу."); return; }
+    const token = localStorage.getItem("access_token");
+    if (!token) { setSubmitError("Нэвтрэх шаардлагатай."); return; }
+    setSubmitting(true);
+    try {
+      const fd = new FormData();
+      fd.append("name", name.trim());
+      fd.append("description", description.trim());
+      fd.append("category", String(categoryKey));
+      fd.append("starting_price", String(auctionStartingPrice));
+      fd.append("bid_increment", bidIncrement || "10000");
+      fd.append("duration", String(Number(duration)));         // numeric
+      fd.append("start_date", `${startDate} ${startTime}:00`); // space separator
+      fd.append("use_user_address", "true");
+      if (subCategoryKey) {
+        fd.append("sub_category", String(subCategoryKey));
+        fd.append("subcategory", String(subCategoryKey)); // send both just in case
+      }
+      if (imei) fd.append("imei", imei);
+
+      // attributes as plain object { label: value }
+      const attrsObj: Record<string, string> = {};
+      if (isCar) {
+        Object.entries(carFields).forEach(([k, v]) => { if (v) attrsObj[k] = v; });
+      }
+      fd.append("attributes", JSON.stringify(attrsObj));
+
+      // thumbnail = first URL; images = all URLs
+      if (imageUrls.length > 0) {
+        fd.append("thumbnail", imageUrls[0]);
+        imageUrls.forEach((url) => fd.append("images", url));
+      }
+      const res = await fetch("/api/lots", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      // Backend uses envelope: { module, status_code: "ng"|"ok", msg, data }
+      const isError = !res.ok || data?.status_code === "ng";
+      if (isError) {
+        let msg = "";
+        if (typeof data?.msg === "string") {
+          msg = data.msg;
+          // Append field-level errors from data.data
+          const inner = data?.data;
+          if (inner && typeof inner === "object") {
+            const flatVal = (v: unknown): string => {
+              if (typeof v === "string") return v;
+              if (Array.isArray(v)) return v.map(flatVal).join(", ");
+              if (v && typeof v === "object") {
+                const o = v as Record<string, unknown>;
+                return o.message ? String(o.message) : o.detail ? String(o.detail) : JSON.stringify(o);
+              }
+              return String(v);
+            };
+            const fields = Object.entries(inner)
+              .map(([k, v]) => `${k}: ${flatVal(v)}`)
+              .join(" | ");
+            if (fields) msg += " — " + fields;
+          }
+        } else if (typeof data?.detail === "string") msg = data.detail;
+        else if (typeof data?.error === "string") msg = data.error;
+        else msg = JSON.stringify(data);
+        setSubmitError(msg || "Алдаа гарлаа.");
+        return;
+      }
+      setSubmitSuccess(true);
+      setTimeout(() => router.push("/dashboard/products"), 1500);
+    } catch {
+      setSubmitError("Сервертэй холбогдоход алдаа гарлаа.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -204,7 +278,11 @@ export default function AddProductPage() {
               <Label>
                 Бүтээгдэхүүний нэр <span className="text-red-500">*</span>
               </Label>
-              <Input placeholder="e.g., TOYOTA LAND CRUISER 250" />
+              <Input
+                placeholder="e.g., TOYOTA LAND CRUISER 250"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
             </div>
 
             {/* Category */}
@@ -212,14 +290,24 @@ export default function AddProductPage() {
               <Label>
                 Ангилал <span className="text-red-500">*</span>
               </Label>
-              <Select value={category} onValueChange={(v) => { setCategory(v ?? ""); setSubCategory(""); setBrandSearch(""); setBrandOpen(false); }}>
+              <Select
+                value={category}
+                onValueChange={(v) => {
+                  const found = categories.find((c) => c.value === v);
+                  setCategory(v ?? "");
+                  setCategoryKey(found?.key ?? "");
+                  setSubCategory("");
+                  setSubCategoryKey("");
+                  setChildCategories([]);
+                }}
+              >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select an option" />
+                  <SelectValue placeholder={catsLoading ? "Ачааллаж байна..." : "Ангилал сонгоно уу"} />
                 </SelectTrigger>
                 <SelectContent>
                   {categories.map((c) => (
-                    <SelectItem key={c.value} value={c.value}>
-                      {c.label}
+                    <SelectItem key={String(c.key)} value={c.value}>
+                      {c.value}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -227,54 +315,38 @@ export default function AddProductPage() {
             </div>
           </div>
 
-          {/* Subcategory brand picker for Car, Phone/Tablet, or Computer */}
-          {(isCar || isPhone || isComputer || isJewelry || isElectronics) && (
+          {/* Subcategory from API child categories */}
+          {childLoading && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-1">
+              <Loader2 className="w-4 h-4 animate-spin" /> Дэд ангилал ачааллаж байна...
+            </div>
+          )}
+          {!childLoading && childCategories.length > 0 && (
             <div className="space-y-1.5">
               <Label>
                 Дэд ангилал <span className="text-red-500">*</span>
               </Label>
-              <div className="relative border rounded-md" onKeyDown={(e) => e.key === "Escape" && setBrandOpen(false)}>
-                <button
-                  type="button"
-                  className="w-full flex items-center justify-between px-3 py-2 text-sm"
-                  onClick={() => setBrandOpen((o) => !o)}
-                >
-                  <span className={subCategory ? "" : "text-muted-foreground"}>
-                    {subCategory || "Select brand or subcategory"}
-                  </span>
-                  <svg className={`w-4 h-4 text-muted-foreground transition-transform ${brandOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                </button>
-                {brandOpen && (
-                  <div className="border-t">
-                    <div className="p-2">
-                      <input
-                        autoFocus
-                        className="w-full text-sm px-2 py-1.5 rounded border border-input bg-transparent placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                        placeholder="Search brands..."
-                        value={brandSearch}
-                        onChange={(e) => setBrandSearch(e.target.value)}
-                      />
-                    </div>
-                    <div className="max-h-52 overflow-y-auto">
-                      {filteredBrands.map((b) => (
-                        <button
-                          key={b}
-                          type="button"
-                          className={`w-full text-left px-4 py-2 text-sm hover:bg-accent transition-colors ${
-                            subCategory === b ? "bg-accent font-medium" : ""
-                          }`}
-                          onClick={() => { setSubCategory(b); setBrandSearch(""); setBrandOpen(false); setImei(""); setImeiStatus("idle"); }}
-                        >
-                          {b}
-                        </button>
-                      ))}
-                      {filteredBrands.length === 0 && (
-                        <p className="px-4 py-3 text-sm text-muted-foreground">Олдсон байхгүй</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <Select
+                value={String(subCategoryKey || "")}
+                onValueChange={(v) => {
+                  const found = childCategories.find((c) => String(c.key) === v);
+                  setSubCategoryKey(v ?? "");
+                  setSubCategory(found?.value ?? "");
+                  setImei("");
+                  setImeiStatus("idle");
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Дэд ангилал сонгоно уу" />
+                </SelectTrigger>
+                <SelectContent>
+                  {childCategories.map((c) => (
+                    <SelectItem key={String(c.key)} value={String(c.key)}>
+                      {c.value}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
 
@@ -328,6 +400,8 @@ export default function AddProductPage() {
               rows={4}
               placeholder="Барааны дэлгэрэнгүй танилцуулга оруулна уу..."
               className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-y"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
             />
           </div>
 
@@ -541,11 +615,22 @@ export default function AddProductPage() {
 
       {/* Section 2: Auction Settings */}
       <Card>
-        <CardContent className="pt-6">
+        <CardContent className="pt-6 space-y-4">
+          <h2 className="font-bold text-lg">Дуудлагын тохиргоо</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Дуудлагын алхам (₮) <span className="text-red-500">*</span></Label>
+              <Input
+                placeholder="e.g., 10000"
+                value={bidIncrement}
+                onChange={(e) => setBidIncrement(e.target.value.replace(/[^0-9]/g, ""))}
+              />
+            </div>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Дуудлага худалдаа үргэлжлэх хугацаа (Цаг)</Label>
-              <Select>
+              <Select value={duration} onValueChange={(v) => setDuration(v ?? "")}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select an option" />
                 </SelectTrigger>
@@ -606,83 +691,73 @@ export default function AddProductPage() {
               Зураг оруулах <span className="text-red-500">*</span>
             </Label>
             <p className="text-xs text-blue-500 mt-0.5">
-              Компьютерээс зураг сонгоно уу (JPG, PNG, GIF - хамгийн ихдээ 5MB)
+              Зургийн URL хаяг оруулна уу
             </p>
           </div>
 
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/jpeg,image/png,image/gif"
-            multiple
-            className="hidden"
-            onChange={onFileChange}
-          />
+          {/* URL input row */}
+          <div className="flex gap-2">
+            <Input
+              placeholder="https://example.com/image.jpg"
+              value={urlInput}
+              onChange={(e) => setUrlInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addImageUrl(); } }}
+            />
+            <Button type="button" variant="outline" onClick={addImageUrl} disabled={!urlInput.trim()}>
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
 
-          {/* Thumbnail grid + add button */}
-          <div
-            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={onDrop}
-            className={`rounded-lg border-2 border-dashed transition-colors p-3 ${
-              dragging ? "border-primary bg-primary/5" : "border-border"
-            }`}
-          >
-            {previews.length === 0 ? (
-              <div
-                onClick={() => fileRef.current?.click()}
-                className="flex flex-col items-center justify-center gap-2 h-40 cursor-pointer"
-              >
-                <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-muted-foreground/30 text-muted-foreground">
-                  <Plus className="h-5 w-5" />
-                </div>
-                <p className="text-sm font-medium text-muted-foreground">Зураг нэмэх</p>
-                <p className="text-xs text-muted-foreground">Эсвэл зургийг энд чирээд тавина уу</p>
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-3">
-                {previews.map((src, idx) => (
-                  <div key={idx} className="relative w-24 h-24 rounded-lg overflow-hidden border flex-shrink-0">
-                    <Image src={src} alt={`preview-${idx}`} fill className="object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => removeImage(idx)}
-                      className="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded-full p-0.5 transition-colors"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                    {idx === 0 && (
-                      <span className="absolute bottom-0 left-0 right-0 text-center text-[10px] bg-blue-600 text-white py-0.5">
-                        Голлогч зураг
-                      </span>
-                    )}
-                  </div>
-                ))}
-                {previews.length < 10 && (
+          {/* Preview grid */}
+          {imageUrls.length > 0 && (
+            <div className="flex flex-wrap gap-3">
+              {imageUrls.map((src, idx) => (
+                <div key={idx} className="relative w-24 h-24 rounded-lg overflow-hidden border flex-shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={src} alt={`preview-${idx}`} className="w-full h-full object-cover" />
                   <button
                     type="button"
-                    onClick={() => fileRef.current?.click()}
-                    className="w-24 h-24 rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1 text-muted-foreground hover:border-primary/50 hover:bg-muted/40 transition-colors flex-shrink-0"
+                    onClick={() => removeImage(idx)}
+                    className="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded-full p-0.5 transition-colors"
                   >
-                    <Plus className="h-5 w-5" />
-                    <span className="text-xs">Нэмэх</span>
+                    <X className="h-3 w-3" />
                   </button>
-                )}
-              </div>
-            )}
-          </div>
+                  {idx === 0 && (
+                    <span className="absolute bottom-0 left-0 right-0 text-center text-[10px] bg-blue-600 text-white py-0.5">
+                      Голлогч
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
           <p className="text-xs text-muted-foreground">
-            Дээж {previews.length}/10 зураг нэмэгдсэн. Анхны зураг голлогч зураг болно.
+            {imageUrls.length}/10 зураг нэмэгдсэн. Анхны зураг голлогч зураг болно.
           </p>
         </CardContent>
       </Card>
 
       {/* Footer Buttons */}
+      {submitError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/20 px-4 py-3 text-sm text-red-600">
+          {submitError}
+        </div>
+      )}
+      {submitSuccess && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20 px-4 py-3 text-sm text-emerald-600 flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4" /> Амжилттай нэмэгдлээ. Шилжиж байна...
+        </div>
+      )}
       <div className="flex justify-end gap-3 pb-6">
         <Button variant="outline" onClick={() => router.push("/dashboard/products")}>
-          Cancel
+          Цуцлах
         </Button>
-        <Button className="bg-blue-600 hover:bg-blue-700 text-white px-6">
+        <Button
+          className="bg-blue-600 hover:bg-blue-700 text-white px-6 gap-2"
+          onClick={handleSubmit}
+          disabled={submitting || submitSuccess}
+        >
+          {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
           Бүтээгдэхүүн нэмэх
         </Button>
       </div>
