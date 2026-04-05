@@ -61,10 +61,7 @@ export function AppSidebar() {
 
       <SidebarFooter className="border-t p-3">
         <div className="flex items-center gap-3">
-          <Avatar className="h-8 w-8">
-            <AvatarImage src="/images/avatars/01.png" alt="Toby Belhome" />
-            <AvatarFallback>TB</AvatarFallback>
-          </Avatar>
+        
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium truncate">Toby Belhome</p>
             <p className="text-xs text-muted-foreground truncate">
