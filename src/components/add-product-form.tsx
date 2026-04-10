@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, X, Loader2, CheckCircle2 } from "lucide-react";
+import { assetUrl } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,7 +36,7 @@ const carFieldOptions = {
   color: ["Цагаан","Хар","Мөнгө","Саарал","Улаан","Цэнхэр","Ногоон","Шар","Хүрэн","Бор"],
 };
 
-const durations = ["1", "3", "6", "12", "24", "48", "72"];
+const durations = ["1", "3", "6"];
 
 function computeStartDateOptions() {
   const today = new Date();
@@ -124,8 +125,8 @@ export default function AddProductForm() {
     setCarFields((prev) => ({ ...prev, [key]: val }));
 
   // ── Images ──
-  const [imageUrls, setImageUrls] = useState<string[]>([]);
-  const [urlInput, setUrlInput] = useState("");
+  const [imagePaths, setImagePaths] = useState<string[]>([]);
+  const [uploadingCount, setUploadingCount] = useState(0);
 
   // ── Submission ──
   const [submitting, setSubmitting] = useState(false);
@@ -179,17 +180,38 @@ export default function AddProductForm() {
   const systemFee = Math.round(priceNum * 0.1);
   const auctionStartingPrice = priceNum + systemFee;
   const startDateOptions = computeStartDateOptions();
-  const hourOptions = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, "0") + ":00");
+  const hourOptions = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, "0") + ":00")
+    .filter((h) => parseInt(h) >= 8 && (!duration || parseInt(h) + Number(duration) <= 24));
 
-  const addImageUrl = () => {
-    const url = urlInput.trim();
-    if (!url || imageUrls.includes(url)) return;
-    setImageUrls((prev) => [...prev, url]);
-    setUrlInput("");
+  const uploadImages = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const token = localStorage.getItem("access_token");
+    if (!token) return;
+    setUploadingCount((n) => n + files.length);
+    await Promise.all(
+      Array.from(files).map(async (file) => {
+        try {
+          const fd = new FormData();
+          fd.append("file", file);
+          const res = await fetch("/api/v1/file/upload", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+            body: fd,
+          });
+          const data = await res.json().catch(() => ({}));
+          const path: string | undefined = data?.data?.path;
+          if (path) setImagePaths((prev) => [...prev, path]);
+        } catch {
+          // skip failed file silently
+        } finally {
+          setUploadingCount((n) => n - 1);
+        }
+      })
+    );
   };
 
   const removeImage = (idx: number) =>
-    setImageUrls((prev) => prev.filter((_, i) => i !== idx));
+    setImagePaths((prev) => prev.filter((_, i) => i !== idx));
 
   async function handleSubmit() {
     setSubmitError("");
@@ -226,9 +248,8 @@ export default function AddProductForm() {
         attributes: attrsObj,
       };
 
-      if (imageUrls.length > 0) {
-        body.thumbnail = imageUrls[0];
-        body.images = imageUrls;
+      if (imagePaths.length > 0) {
+        body.images = imagePaths;
       }
 
       const res = await fetch("/api/v1/lot/insert/", {
@@ -357,31 +378,29 @@ export default function AddProductForm() {
                 value={price}
                 onChange={(e) => setPrice(e.target.value.replace(/[^0-9]/g, ""))}
               />
-              <p className="text-xs text-muted-foreground">
+              {/* <p className="text-xs text-muted-foreground">
                 Үнийн дүнг бүх тагтай нь оруулна уу. Жишээ нь: 12 сайн 12000000 гэж оруулна уу.
-              </p>
+              </p> */}
             </div>
 
             {priceNum > 0 && (
               <div className="rounded-lg border bg-muted/30 p-4 space-y-2 text-sm">
-                <p className="font-semibold">Auction Starting Price (MNT)</p>
+                <p className="font-semibold">Дуудлага худалдаа эхлэх үнэ (MNT)</p>
                 <div className="space-y-1.5">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Your Price:</span>
+                    <span className="text-muted-foreground">Таны үнэ:</span>
                     <span>{priceNum.toLocaleString()} MNT</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">System Fee (10%):</span>
+                    <span className="text-muted-foreground">Системийн шимтгэл(10%):</span>
                     <span className="text-orange-500">+{systemFee.toLocaleString()} MNT</span>
                   </div>
                   <div className="flex justify-between border-t pt-1.5 font-bold">
-                    <span>Auction Starting Price:</span>
+                    <span>Дуудлага худалдаа эхлэх үнэ:</span>
                     <span>{auctionStartingPrice.toLocaleString()} MNT</span>
                   </div>
                 </div>
-                <p className="text-xs text-blue-500">
-                  The auction will start at 110% of your price (includes 10% system fee)
-                </p>
+               
               </div>
             )}
           </div>
@@ -447,16 +466,17 @@ export default function AddProductForm() {
       <Card>
         <CardContent className="pt-6 space-y-4">
           <h2 className="font-bold text-lg">Дуудлагын тохиргоо</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label>Дуудлагын алхам (₮) <span className="text-red-500">*</span></Label>
-              <Input placeholder="e.g., 10000" value={bidIncrement} onChange={(e) => setBidIncrement(e.target.value.replace(/[^0-9]/g, ""))} />
-            </div>
-          </div>
+        
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Дуудлага худалдаа үргэлжлэх хугацаа (Цаг)</Label>
-              <Select value={duration} onValueChange={(v) => setDuration(v ?? "")}>
+              <Select
+                value={duration}
+                onValueChange={(v) => {
+                  setDuration(v ?? "");
+                  if (startTime && parseInt(startTime) + Number(v) > 24) setStartTime("");
+                }}
+              >
                 <SelectTrigger className="w-full"><SelectValue placeholder="Select an option" /></SelectTrigger>
                 <SelectContent>
                   {durations.map((d) => <SelectItem key={d} value={d}>{d} цаг</SelectItem>)}
@@ -493,25 +513,37 @@ export default function AddProductForm() {
           <h2 className="font-bold text-lg">Бүтээгдэхүүний зураг</h2>
           <div>
             <Label>Зураг оруулах <span className="text-red-500">*</span></Label>
-            <p className="text-xs text-blue-500 mt-0.5">Зургийн URL хаяг оруулна уу</p>
+            <p className="text-xs text-blue-500 mt-0.5">Зураг сонгоод автоматаар upload хийгдэнэ</p>
           </div>
-          <div className="flex gap-2">
-            <Input
-              placeholder="https://example.com/image.jpg"
-              value={urlInput}
-              onChange={(e) => setUrlInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addImageUrl(); } }}
-            />
-            <Button type="button" variant="outline" onClick={addImageUrl} disabled={!urlInput.trim()}>
+          <div>
+            <label className="inline-flex items-center gap-2 cursor-pointer rounded-md border border-input bg-background px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
               <Plus className="h-4 w-4" />
-            </Button>
+              Зураг нэмэх
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => uploadImages(e.target.files)}
+              />
+            </label>
           </div>
-          {imageUrls.length > 0 && (
+          {uploadingCount > 0 && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              {uploadingCount} зураг upload хийж байна...
+            </div>
+          )}
+          {imagePaths.length > 0 && (
             <div className="flex flex-wrap gap-3">
-              {imageUrls.map((src, idx) => (
-                <div key={idx} className="relative w-24 h-24 rounded-lg overflow-hidden border flex-shrink-0">
+              {imagePaths.map((path, idx) => (
+                <div key={idx} className="relative w-24 h-24 rounded-lg overflow-hidden border shrink-0">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={src} alt={`preview-${idx}`} className="w-full h-full object-cover" />
+                  <img
+                    src={assetUrl(path)}
+                    alt={`preview-${idx}`}
+                    className="w-full h-full object-cover"
+                  />
                   <button
                     type="button"
                     onClick={() => removeImage(idx)}
@@ -529,7 +561,7 @@ export default function AddProductForm() {
             </div>
           )}
           <p className="text-xs text-muted-foreground">
-            {imageUrls.length}/10 зураг нэмэгдсэн. Анхны зураг голлогч зураг болно.
+            {imagePaths.length}/10 зураг нэмэгдсэн. Анхны зураг голлогч зураг болно.
           </p>
         </CardContent>
       </Card>

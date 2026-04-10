@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -62,11 +63,8 @@ export default function LoginPage() {
     <div className="flex min-h-svh flex-col items-center justify-center bg-muted/40 p-6 md:p-10">
       <div className="flex w-full max-w-sm flex-col gap-6">
         {/* Logo */}
-        <a href="#" className="flex items-center gap-2 self-center font-semibold text-lg">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white text-sm font-bold">
-            А
-          </div>
-          Дуудлага худалдаа
+        <a href="#" className="flex items-center gap-2 self-center">
+          <Image src="/svg/main-logo.svg" alt="Logo" width={180} height={48} priority />
         </a>
 
         <Card>

@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const res = await fetch(`${process.env.API_URL}/api/v1/lot/seller/list`, {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/lot/seller/list`, {
     method: "GET",
     headers: {
       Authorization: authHeader,
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
   const contentType = req.headers.get("content-type") ?? "";
   const body = await req.arrayBuffer();
 
-  const res = await fetch(`${process.env.API_URL}/api/v1/lot/insert/`, {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/lot/insert/`, {
     method: "POST",
     headers: {
       Authorization: authHeader,

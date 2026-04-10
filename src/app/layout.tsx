@@ -16,6 +16,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Dashboard",
   description: "Admin Dashboard",
+  icons: {
+    icon: "/svg/main-logo.svg",
+  },
 };
 
 export default function RootLayout({

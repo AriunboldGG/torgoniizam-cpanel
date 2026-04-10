@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   });
 
   const res = await fetch(
-    `${process.env.API_URL}/api/oauth2/token/`,
+    `${process.env.NEXT_PUBLIC_API_URL}/api/oauth2/token/`,
     {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },

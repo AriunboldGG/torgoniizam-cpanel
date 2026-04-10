@@ -12,7 +12,7 @@ export async function PUT(
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
 
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/lot/update/${id}/`, {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/lot/upload/${id}/`, {
     method: "PUT",
     headers: {
       Authorization: authHeader,

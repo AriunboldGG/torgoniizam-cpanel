@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import { X, ZoomIn, ChevronLeft, ChevronRight, Clock, AlarmClock, Hourglass } from "lucide-react";
+import { assetUrl } from "@/lib/utils";
 
 import {
   Dialog,
@@ -77,10 +78,11 @@ function getImages(lot: Lot): string[] {
               "")
             : "",
       )
-      .filter(Boolean);
+      .filter(Boolean)
+      .map(assetUrl);
   }
   const single = getString(lot, "image", "image_url", "thumbnail", "photo");
-  return single ? [single] : [];
+  return single ? [assetUrl(single)] : [];
 }
 
 function getName(lot: Lot): string {
@@ -210,7 +212,7 @@ interface LotDetailModalProps {
 
 export default function LotDetailModal({ lot, onClose }: LotDetailModalProps) {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
-  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+  const [isZoomed, setIsZoomed] = useState(false);
 
   function prevImage(images: string[]) {
     setActiveImageIndex((i) => (i === 0 ? images.length - 1 : i - 1));
@@ -223,7 +225,7 @@ export default function LotDetailModal({ lot, onClose }: LotDetailModalProps) {
   function handleOpenChange(open: boolean) {
     if (!open) {
       setActiveImageIndex(0);
-      setZoomedImage(null);
+      setIsZoomed(false);
       onClose();
     }
   }
@@ -273,7 +275,7 @@ export default function LotDetailModal({ lot, onClose }: LotDetailModalProps) {
               <div
                 className="relative h-64 w-full bg-muted rounded-xl overflow-hidden group cursor-zoom-in"
                 onClick={() =>
-                  images[activeImageIndex] && setZoomedImage(images[activeImageIndex])
+                  images[activeImageIndex] && setIsZoomed(true)
                 }
               >
                 {images[activeImageIndex] ? (
@@ -431,24 +433,43 @@ export default function LotDetailModal({ lot, onClose }: LotDetailModalProps) {
       </Dialog>
 
       {/* Fullscreen zoom overlay */}
-      {zoomedImage && (
+      {isZoomed && images[activeImageIndex] && (
         <div
           className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center"
-          onClick={() => setZoomedImage(null)}
+          onClick={() => setIsZoomed(false)}
         >
           <button
             className="absolute top-4 right-4 text-white bg-white/10 hover:bg-white/20 rounded-full p-2 transition-colors"
-            onClick={() => setZoomedImage(null)}
+            onClick={() => setIsZoomed(false)}
           >
             <X className="w-6 h-6" />
           </button>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={zoomedImage}
+            src={images[activeImageIndex]}
             alt="Zoomed"
             className="max-w-full max-h-full object-contain select-none"
             onClick={(e) => e.stopPropagation()}
           />
+          {images.length > 1 && (
+            <>
+              <button
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-white bg-white/10 hover:bg-white/20 rounded-full p-3 transition-colors"
+                onClick={(e) => { e.stopPropagation(); prevImage(images); }}
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+              <button
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-white bg-white/10 hover:bg-white/20 rounded-full p-3 transition-colors"
+                onClick={(e) => { e.stopPropagation(); nextImage(images); }}
+              >
+                <ChevronRight className="w-6 h-6" />
+              </button>
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-sm px-3 py-1 rounded-full">
+                {activeImageIndex + 1} / {images.length}
+              </div>
+            </>
+          )}
         </div>
       )}
     </>

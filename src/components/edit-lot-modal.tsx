@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Plus, X, Loader2, CheckCircle2 } from "lucide-react";
+import { assetUrl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,7 +22,7 @@ import {
 
 type Lot = Record<string, unknown>;
 
-const durations = ["1", "3", "6", "12", "24", "48", "72"];
+const durations = ["1", "3", "6"];
 
 function computeStartDateOptions() {
   const today = new Date();
@@ -35,7 +36,8 @@ function computeStartDateOptions() {
   });
 }
 
-const hourOptions = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, "0") + ":00");
+const hourOptions = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, "00") + ":00")
+  .filter((h) => parseInt(h) >= 8);
 
 function getString(lot: Lot, ...keys: string[]): string {
   for (const key of keys) {
@@ -72,8 +74,8 @@ export default function EditLotModal({ lot, onClose, onUpdated }: EditLotModalPr
   const [duration, setDuration] = useState("");
   const [startDate, setStartDate] = useState("");
   const [startTime, setStartTime] = useState("");
-  const [imageUrls, setImageUrls] = useState<string[]>([]);
-  const [urlInput, setUrlInput] = useState("");
+  const [imagePaths, setImagePaths] = useState<string[]>([]);
+  const [uploadingCount, setUploadingCount] = useState(0);
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -100,7 +102,7 @@ export default function EditLotModal({ lot, onClose, onUpdated }: EditLotModalPr
       setStartDate("");
       setStartTime("");
     }
-    setImageUrls(getImages(lot));
+    setImagePaths(getImages(lot));
     setSubmitError("");
     setSubmitSuccess(false);
   }, [lot]);
@@ -112,13 +114,34 @@ export default function EditLotModal({ lot, onClose, onUpdated }: EditLotModalPr
     ? [{ value: startDate, label: startDate }, ...startDateOptions]
     : startDateOptions;
 
-  const addImageUrl = () => {
-    const url = urlInput.trim();
-    if (!url || imageUrls.includes(url)) return;
-    setImageUrls((prev) => [...prev, url]);
-    setUrlInput("");
+  const uploadImages = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const token = localStorage.getItem("access_token");
+    if (!token) return;
+    setUploadingCount((n) => n + files.length);
+    await Promise.all(
+      Array.from(files).map(async (file) => {
+        try {
+          const fd = new FormData();
+          fd.append("file", file);
+          const res = await fetch("/api/v1/file/upload", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+            body: fd,
+          });
+          const data = await res.json().catch(() => ({}));
+          const path: string | undefined = data?.data?.path;
+          if (path) setImagePaths((prev) => [...prev, path]);
+        } catch {
+          // skip failed file silently
+        } finally {
+          setUploadingCount((n) => n - 1);
+        }
+      })
+    );
   };
-  const removeImage = (idx: number) => setImageUrls((prev) => prev.filter((_, i) => i !== idx));
+
+  const removeImage = (idx: number) => setImagePaths((prev) => prev.filter((_, i) => i !== idx));
 
   async function handleSubmit() {
     setSubmitError("");
@@ -157,9 +180,8 @@ export default function EditLotModal({ lot, onClose, onUpdated }: EditLotModalPr
         use_user_address: true,
         attributes,
       };
-      if (imageUrls.length > 0) {
-        body.thumbnail = imageUrls[0];
-        body.images = imageUrls;
+      if (imagePaths.length > 0) {
+        body.images = imagePaths;
       }
 
       console.log("[update body]", body);
@@ -187,6 +209,18 @@ export default function EditLotModal({ lot, onClose, onUpdated }: EditLotModalPr
         if (!msg) msg = data?.detail ?? data?.error ?? JSON.stringify(data);
         setSubmitError(msg || "Алдаа гарлаа.");
         return;
+      }
+
+      // Upload images via the dedicated lot upload endpoint
+      if (imagePaths.length > 0) {
+        await fetch(`/api/v1/lot/upload/${lotId}/`, {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ images: imagePaths }),
+        });
       }
 
       setSubmitSuccess(true);
@@ -245,15 +279,7 @@ export default function EditLotModal({ lot, onClose, onUpdated }: EditLotModalPr
             )}
           </div>
 
-          {/* Bid Increment */}
-          <div className="space-y-1.5">
-            <Label>Дуудлагын алхам (₮) <span className="text-red-500">*</span></Label>
-            <Input
-              value={bidIncrement}
-              onChange={(e) => setBidIncrement(e.target.value.replace(/[^0-9]/g, ""))}
-              placeholder="e.g., 10000"
-            />
-          </div>
+      
 
           {/* Duration + Start Date */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -291,23 +317,35 @@ export default function EditLotModal({ lot, onClose, onUpdated }: EditLotModalPr
           {/* Images */}
           <div className="space-y-2">
             <Label>Зурагнууд</Label>
-            <div className="flex gap-2">
-              <Input
-                placeholder="https://example.com/image.jpg"
-                value={urlInput}
-                onChange={(e) => setUrlInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addImageUrl(); } }}
-              />
-              <Button type="button" variant="outline" onClick={addImageUrl} disabled={!urlInput.trim()}>
+            <div>
+              <label className="inline-flex items-center gap-2 cursor-pointer rounded-md border border-input bg-background px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
                 <Plus className="h-4 w-4" />
-              </Button>
+                Зураг нэмэх
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => uploadImages(e.target.files)}
+                />
+              </label>
             </div>
-            {imageUrls.length > 0 && (
+            {uploadingCount > 0 && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                {uploadingCount} зураг upload хийж байна...
+              </div>
+            )}
+            {imagePaths.length > 0 && (
               <div className="flex flex-wrap gap-2">
-                {imageUrls.map((src, idx) => (
-                  <div key={idx} className="relative w-20 h-20 rounded-lg overflow-hidden border flex-shrink-0">
+                {imagePaths.map((path, idx) => (
+                  <div key={idx} className="relative w-20 h-20 rounded-lg overflow-hidden border shrink-0">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={src} alt={`img-${idx}`} className="w-full h-full object-cover" />
+                    <img
+                      src={assetUrl(path)}
+                      alt={`img-${idx}`}
+                      className="w-full h-full object-cover"
+                    />
                     <button
                       type="button"
                       onClick={() => removeImage(idx)}

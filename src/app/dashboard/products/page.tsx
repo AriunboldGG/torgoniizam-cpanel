@@ -4,6 +4,8 @@ import Image from "next/image";
 
 import { Search, Loader2, Trash2, Pencil } from "lucide-react";
 
+import { assetUrl } from "@/lib/utils";
+
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -53,7 +55,6 @@ function getImages(lot: Lot): string[] {
 
   if (Array.isArray(v)) {
     return v
-
       .map((i) =>
         typeof i === "string"
           ? i
@@ -63,13 +64,13 @@ function getImages(lot: Lot): string[] {
               "")
             : "",
       )
-
-      .filter(Boolean);
+      .filter(Boolean)
+      .map(assetUrl);
   }
 
   const single = getString(lot, "image", "image_url", "thumbnail", "photo");
 
-  return single ? [single] : [];
+  return single ? [assetUrl(single)] : [];
 }
 
 function getStatus(lot: Lot): string {

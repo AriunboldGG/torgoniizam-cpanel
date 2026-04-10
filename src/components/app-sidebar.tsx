@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   List,
@@ -28,15 +30,24 @@ const navItems = [
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const [user, setUser] = useState<{ username?: string; email?: string } | null>(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    if (!token) return;
+    fetch("/api/user", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => setUser(data))
+      .catch(() => null);
+  }, []);
 
   return (
     <Sidebar>
       <SidebarHeader className="border-b px-4 py-3">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-sm font-bold">
-            A
-          </div>
-          <span className="font-semibold text-sm">Auction Admin</span>
+        <div className="flex items-center">
+          <Image src="/svg/main-logo.svg" alt="Logo" width={140} height={36} priority />
         </div>
       </SidebarHeader>
 
@@ -63,9 +74,9 @@ export function AppSidebar() {
         <div className="flex items-center gap-3">
         
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">Toby Belhome</p>
+            <p className="text-sm font-medium truncate">{user?.username ?? "—"}</p>
             <p className="text-xs text-muted-foreground truncate">
-              hello@tobybelhome.com
+              {user?.email ?? ""}
             </p>
           </div>
         </div>

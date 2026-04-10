@@ -13,7 +13,7 @@ export async function GET(
   const { id } = await params;
 
   const res = await fetch(
-    `${process.env.API_URL}/api/v1/lot/category/${id}?has_attribute=true`,
+    `${process.env.NEXT_PUBLIC_API_URL}/api/v1/lot/category/${id}?has_attribute=true`,
     {
       method: "GET",
       headers: {

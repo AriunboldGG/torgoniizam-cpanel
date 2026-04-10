@@ -11,7 +11,7 @@ export async function DELETE(
 
   const { id } = await params;
 
-  const res = await fetch(`${process.env.API_URL}/api/v1/lot/delete/${id}/`, {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/lot/delete/${id}/`, {
     method: "DELETE",
     headers: { Authorization: authHeader },
   });
