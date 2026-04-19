@@ -26,7 +26,7 @@ const carFieldOptions = {
   driveType: ["FWD", "RWD", "AWD", "4WD"],
   yearOfManufacture: Array.from({ length: 36 }, (_, i) => String(2025 - i)),
   yearOfImport: Array.from({ length: 20 }, (_, i) => String(2025 - i)),
-  engine: ["Бензин", "Дизель", "Цахилгаан", "Гибрид", "Байгалийн хий"],
+  engine: ["Бензин", "Дизель", "Цахилгаан", "Гибрид"],
   engineCapacity: [
     "1.0","1.2","1.3","1.4","1.5","1.6","1.8","2.0","2.2",
     "2.4","2.5","2.7","2.8","3.0","3.3","3.5","3.8","4.0","4.5","5.0","5.7","6.0+",
@@ -428,7 +428,7 @@ export default function AddProductForm() {
                 ] as [keyof typeof carFieldOptions, string][]
               ).map(([field, label]) => (
                 <div key={field} className="space-y-1.5">
-                  <Label>{label} <span className="text-red-500">*</span></Label>
+                  <Label>{label}</Label>
                   <Select value={carFields[field]} onValueChange={(v) => setCarField(field, v ?? "")}>
                     <SelectTrigger className="w-full"><SelectValue placeholder="Select an option" /></SelectTrigger>
                     <SelectContent className="max-h-60">
@@ -439,18 +439,18 @@ export default function AddProductForm() {
               ))}
 
               <div className="space-y-1.5">
-                <Label>Дотор өнгө (Interior Color) <span className="text-red-500">*</span></Label>
+                <Label>Дотор өнгө (Interior Color)</Label>
                 <Input placeholder="e.g., Хар, Саарал..." value={carFields.interiorColor} onChange={(e) => setCarField("interiorColor", e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label>Явсан (Mileage) <span className="text-red-500">*</span></Label>
+                <Label>Явсан (Mileage)</Label>
                 <div className="relative">
                   <Input placeholder="e.g., 8000" value={carFields.mileage} onChange={(e) => setCarField("mileage", e.target.value.replace(/[^0-9]/g, ""))} className="pr-12" />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium">KM</span>
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label>Өнгө (Color) <span className="text-red-500">*</span></Label>
+                <Label>Өнгө (Color)</Label>
                 <Input placeholder="e.g., Цагаан, Хар..." value={carFields.color} onChange={(e) => setCarField("color", e.target.value)} />
               </div>
               <div className="space-y-1.5">
@@ -574,7 +574,7 @@ export default function AddProductForm() {
       )}
       {submitSuccess && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20 px-4 py-3 text-sm text-emerald-600 flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4" /> Амжилттай нэмэгдлээ. Шилжиж байна...
+          <CheckCircle2 className="w-4 h-4" /> Бүтээгдэхүүн нэмж байна. Түр хүлээнэ үү...
         </div>
       )}
 

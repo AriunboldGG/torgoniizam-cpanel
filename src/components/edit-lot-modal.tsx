@@ -22,6 +22,40 @@ import {
 
 type Lot = Record<string, unknown>;
 
+const carFieldOptions = {
+  condition: ["Шинэ", "Хуучин"],
+  type: ["Sedan", "SUV", "Hatchback", "Crossover", "Pickup", "Van", "Coupe", "Minivan"],
+  doors: ["2", "3", "4", "5"],
+  steeringWheel: ["Зүүн", "Баруун"],
+  driveType: ["FWD", "RWD", "AWD", "4WD"],
+  yearOfManufacture: Array.from({ length: 36 }, (_, i) => String(2025 - i)),
+  yearOfImport: Array.from({ length: 20 }, (_, i) => String(2025 - i)),
+  engine: ["Бензин", "Дизель", "Цахилгаан", "Гибрид", "Байгалийн хий"],
+  engineCapacity: [
+    "1.0","1.2","1.3","1.4","1.5","1.6","1.8","2.0","2.2",
+    "2.4","2.5","2.7","2.8","3.0","3.3","3.5","3.8","4.0","4.5","5.0","5.7","6.0+",
+  ],
+  gearbox: ["Автомат", "Механик", "Робот", "Вариатор"],
+};
+
+const emptyCarFields = (): Record<string, string> => ({
+  condition: "", type: "", doors: "", steeringWheel: "", driveType: "",
+  yearOfManufacture: "", yearOfImport: "", engine: "", engineCapacity: "",
+  gearbox: "", interiorColor: "", mileage: "", color: "", chassis: "",
+});
+
+function isCatCar(lot: Lot): boolean {
+  const raw = lot?.category;
+  let name = "";
+  if (typeof raw === "string") name = raw;
+  else if (typeof raw === "object" && raw !== null) {
+    const obj = raw as Record<string, unknown>;
+    name = String(obj.name ?? obj.title ?? obj.value ?? "");
+  }
+  const u = name.toUpperCase();
+  return u.includes("АВТО") || u.includes("CAR") || u.includes("МАШИН");
+}
+
 const durations = ["1", "3", "6"];
 
 function computeStartDateOptions() {
@@ -76,6 +110,9 @@ export default function EditLotModal({ lot, onClose, onUpdated }: EditLotModalPr
   const [startTime, setStartTime] = useState("");
   const [imagePaths, setImagePaths] = useState<string[]>([]);
   const [uploadingCount, setUploadingCount] = useState(0);
+  const [carFields, setCarFields] = useState<Record<string, string>>(emptyCarFields());
+  const setCarField = (key: string, val: string) =>
+    setCarFields((prev) => ({ ...prev, [key]: val }));
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -95,7 +132,9 @@ export default function EditLotModal({ lot, onClose, onUpdated }: EditLotModalPr
     setDuration(dur ? String(dur) : "");
     const sd = getString(lot, "start_date", "starts_at", "auction_start");
     if (sd) {
-      const parts = sd.split(" ");
+      // Handle both "YYYY-MM-DD HH:MM:SS" and ISO "YYYY-MM-DDTHH:MM:SS" formats
+      const normalized = sd.replace("T", " ").replace(/([+-]\d{2}:\d{2}|Z)$/, "").trim();
+      const parts = normalized.split(" ");
       setStartDate(parts[0] ?? "");
       setStartTime(parts[1] ? parts[1].slice(0, 5) : "");
     } else {
@@ -103,6 +142,18 @@ export default function EditLotModal({ lot, onClose, onUpdated }: EditLotModalPr
       setStartTime("");
     }
     setImagePaths(getImages(lot));
+    // Initialize car attribute fields from existing lot attributes
+    const attrsRaw = lot?.attributes;
+    if (attrsRaw && typeof attrsRaw === "object" && !Array.isArray(attrsRaw)) {
+      const attrs = attrsRaw as Record<string, unknown>;
+      const filled = emptyCarFields();
+      Object.keys(filled).forEach((k) => {
+        if (attrs[k] !== undefined && attrs[k] !== null) filled[k] = String(attrs[k]);
+      });
+      setCarFields(filled);
+    } else {
+      setCarFields(emptyCarFields());
+    }
     setSubmitError("");
     setSubmitSuccess(false);
   }, [lot]);
@@ -113,6 +164,13 @@ export default function EditLotModal({ lot, onClose, onUpdated }: EditLotModalPr
   const allStartDateOptions = startDate && !startDateOptions.find((o) => o.value === startDate)
     ? [{ value: startDate, label: startDate }, ...startDateOptions]
     : startDateOptions;
+  // If existing time/duration not in preset options, add them so the Select shows a value
+  const allTimeOptions: string[] = startTime && !hourOptions.includes(startTime)
+    ? [startTime, ...hourOptions]
+    : hourOptions;
+  const allDurations: string[] = duration && !durations.includes(duration)
+    ? [duration, ...durations]
+    : durations;
 
   const uploadImages = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -163,11 +221,17 @@ export default function EditLotModal({ lot, onClose, onUpdated }: EditLotModalPr
         ? Number((catRaw as Record<string, unknown>).id ?? (catRaw as Record<string, unknown>).key ?? 0)
         : Number(catRaw ?? 0);
 
-      const attrsRaw = lot?.attributes;
-      const attributes: Record<string, unknown> =
-        attrsRaw && typeof attrsRaw === "object" && !Array.isArray(attrsRaw)
-          ? (attrsRaw as Record<string, unknown>)
-          : {};
+      const isCar = isCatCar(lot ?? {});
+      const attributes: Record<string, string> = {};
+      if (isCar) {
+        Object.entries(carFields).forEach(([k, v]) => { if (v) attributes[k] = v; });
+      } else {
+        // preserve existing attributes as-is for non-car lots
+        const attrsRaw = lot?.attributes;
+        if (attrsRaw && typeof attrsRaw === "object" && !Array.isArray(attrsRaw)) {
+          Object.assign(attributes, attrsRaw as Record<string, unknown>);
+        }
+      }
 
       const body: Record<string, unknown> = {
         name: name.trim(),
@@ -247,6 +311,72 @@ export default function EditLotModal({ lot, onClose, onUpdated }: EditLotModalPr
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., TOYOTA LAND CRUISER 250" />
           </div>
 
+          {/* Car attributes */}
+          {lot && (() => {
+            if (isCatCar(lot)) return true;
+            // Also show if lot already has any car attribute keys stored
+            const attrsRaw = lot?.attributes;
+            if (attrsRaw && typeof attrsRaw === "object" && !Array.isArray(attrsRaw)) {
+              const attrs = attrsRaw as Record<string, unknown>;
+              return Object.keys(emptyCarFields()).some(
+                (k) => attrs[k] !== undefined && attrs[k] !== null && attrs[k] !== ""
+              );
+            }
+            return false;
+          })() && (
+            <div className="space-y-3">
+              <p className="font-semibold text-sm">Автомашины мэдээлэл</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {([
+                  ["condition", "Нөхцөл (Condition)"],
+                  ["type", "Төрөл (Type)"],
+                  ["doors", "Хаалга (Doors)"],
+                  ["steeringWheel", "Тээвэр (Steering Wheel)"],
+                  ["driveType", "Хөтлөгч (Drive Type)"],
+                  ["yearOfManufacture", "Үйлдвэрлэсэн он"],
+                  ["yearOfImport", "Орж ирсэн он"],
+                  ["engine", "Хөдөлгүүр (Engine)"],
+                  ["engineCapacity", "Мотор багтаамж (Engine Capacity)"],
+                  ["gearbox", "Хурдны хайрцаг (Gearbox)"],
+                ] as [keyof typeof carFieldOptions, string][]).map(([field, label]) => {
+                  const opts = carFieldOptions[field];
+                  const val = carFields[field] ?? "";
+                  const allOpts = val && !opts.includes(val) ? [val, ...opts] : opts;
+                  return (
+                    <div key={field} className="space-y-1.5">
+                      <Label>{label}</Label>
+                      <Select value={val} onValueChange={(v) => setCarField(field, v ?? "")}>
+                        <SelectTrigger className="w-full"><SelectValue placeholder="Select" /></SelectTrigger>
+                        <SelectContent className="max-h-60">
+                          {allOpts.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  );
+                })}
+                <div className="space-y-1.5">
+                  <Label>Дотор өнгө (Interior Color)</Label>
+                  <Input value={carFields.interiorColor ?? ""} onChange={(e) => setCarField("interiorColor", e.target.value)} placeholder="e.g., Хар, Саарал..." />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Явсан (Mileage)</Label>
+                  <div className="relative">
+                    <Input value={carFields.mileage ?? ""} onChange={(e) => setCarField("mileage", e.target.value.replace(/[^0-9]/g, ""))} placeholder="e.g., 80000" className="pr-10" />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">KM</span>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Өнгө (Color)</Label>
+                  <Input value={carFields.color ?? ""} onChange={(e) => setCarField("color", e.target.value)} placeholder="e.g., Цагаан, Хар..." />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Арлын дугаар (Chassis / VIN)</Label>
+                  <Input value={carFields.chassis ?? ""} onChange={(e) => setCarField("chassis", e.target.value)} placeholder="e.g., JT1234567890" />
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Description */}
           <div className="space-y-1.5">
             <Label>Тайлбар <span className="text-red-500">*</span></Label>
@@ -259,7 +389,7 @@ export default function EditLotModal({ lot, onClose, onUpdated }: EditLotModalPr
             />
           </div>
 
-          {/* Price */}
+          {/* Price + Bid Increment */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
             <div className="space-y-1.5">
               <Label>Үнэ (Price) <span className="text-red-500">*</span></Label>
@@ -269,15 +399,15 @@ export default function EditLotModal({ lot, onClose, onUpdated }: EditLotModalPr
                 placeholder="e.g., 12000000"
               />
             </div>
-            {priceNum > 0 && (
-              <div className="rounded-lg border bg-muted/30 p-3 space-y-1 text-sm">
-                <div className="flex justify-between font-bold">
-                  <span>Starting Price:</span>
-                  <span>{priceNum.toLocaleString()} MNT</span>
-                </div>
-              </div>
-            )}
           </div>
+          {priceNum > 0 && (
+            <div className="rounded-lg border bg-muted/30 p-3 space-y-1 text-sm">
+              <div className="flex justify-between font-bold">
+                <span>Starting Price:</span>
+                <span>{priceNum.toLocaleString()} MNT</span>
+              </div>
+            </div>
+          )}
 
       
 
@@ -288,7 +418,7 @@ export default function EditLotModal({ lot, onClose, onUpdated }: EditLotModalPr
               <Select value={duration} onValueChange={(v) => setDuration(v ?? "")}>
                 <SelectTrigger className="w-full"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>
-                  {durations.map((d) => <SelectItem key={d} value={d}>{d} цаг</SelectItem>)}
+                  {allDurations.map((d) => <SelectItem key={d} value={d}>{d} цаг</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -306,7 +436,7 @@ export default function EditLotModal({ lot, onClose, onUpdated }: EditLotModalPr
                   <Select value={startTime} onValueChange={(v) => setStartTime(v ?? "")}>
                     <SelectTrigger className="w-full"><SelectValue placeholder="Select" /></SelectTrigger>
                     <SelectContent className="max-h-60">
-                      {hourOptions.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                      {allTimeOptions.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -372,7 +502,7 @@ export default function EditLotModal({ lot, onClose, onUpdated }: EditLotModalPr
           )}
           {submitSuccess && (
             <div className="rounded-lg border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20 px-4 py-3 text-sm text-emerald-600 flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4" /> Амжилттай хадгалагдлаа.
+              <CheckCircle2 className="w-4 h-4" /> Бүтээгдэхүүн шинэчилж байна. Түр хүлээнэ үү...
             </div>
           )}
 

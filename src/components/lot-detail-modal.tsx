@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import { X, ZoomIn, ChevronLeft, ChevronRight, Clock, AlarmClock, Hourglass } from "lucide-react";
 import { assetUrl } from "@/lib/utils";
@@ -213,6 +213,53 @@ interface LotDetailModalProps {
 export default function LotDetailModal({ lot, onClose }: LotDetailModalProps) {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isZoomed, setIsZoomed] = useState(false);
+  const [secretValue, setSecretValue] = useState<string | null>(null);
+  const [secretLoading, setSecretLoading] = useState(false);
+console.log("LotDetailModal rendered with lot:", secretValue);
+  type Buyer = {
+    username?: string;
+    first_name?: string;
+    last_name?: string;
+    email?: string;
+    phone?: string;
+    informal?: string;
+  };
+  const [buyer, setBuyer] = useState<Buyer | null>(null);
+  const [buyerLoading, setBuyerLoading] = useState(false);
+
+  useEffect(() => {
+    if (!lot) { setSecretValue(null); setBuyer(null); return; }
+    const lotId = String(lot.id ?? lot.lot_id ?? lot.uuid ?? lot.pk ?? "");
+    if (!lotId) { setSecretValue(null); setBuyer(null); return; }
+    const token = localStorage.getItem("access_token");
+    if (!token) { setSecretValue(null); setBuyer(null); return; }
+
+    // Fetch secret_value
+    setSecretLoading(true);
+    fetch(`/api/v1/lot/detail/${lotId}/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json().catch(() => ({})))
+      .then((data) => {
+        const sv = data?.secret_value ?? data?.data?.secret_value ?? null;
+        setSecretValue(sv !== undefined && sv !== null ? String(sv) : null);
+      })
+      .catch(() => setSecretValue(null))
+      .finally(() => setSecretLoading(false));
+
+    // Fetch buyer info
+    setBuyerLoading(true);
+    fetch(`/api/v1/bid/won/${lotId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json().catch(() => ({})))
+      .then((data) => {
+        const b = data?.buyer ?? data?.data?.buyer ?? null;
+        setBuyer(b && typeof b === "object" ? (b as Buyer) : null);
+      })
+      .catch(() => setBuyer(null))
+      .finally(() => setBuyerLoading(false));
+  }, [lot]);
 
   function prevImage(images: string[]) {
     setActiveImageIndex((i) => (i === 0 ? images.length - 1 : i - 1));
@@ -226,6 +273,8 @@ export default function LotDetailModal({ lot, onClose }: LotDetailModalProps) {
     if (!open) {
       setActiveImageIndex(0);
       setIsZoomed(false);
+      setSecretValue(null);
+      setBuyer(null);
       onClose();
     }
   }
@@ -379,9 +428,23 @@ export default function LotDetailModal({ lot, onClose }: LotDetailModalProps) {
                   value={currentBid > 0 ? formatMNT(currentBid) : ""}
                   valueClass="text-emerald-600"
                 />
-                <InfoRow label="Дуудлага ахиулах доод үнэ"  value={bidIncrement > 0 ? formatMNT(bidIncrement) : ""} />
                 <InfoRow label="Нийт дуудлага"    value={bidsCount > 0 ? String(bidsCount) : ""} />
               </Section>
+              {/* ── Бараа авах код ── */}
+              <div className="rounded-xl border overflow-hidden">
+                <p className="font-semibold text-sm px-4 py-3 bg-muted/40 border-b">Бараа авах код</p>
+                <div className="px-4 py-3">
+                  {secretLoading ? (
+                    <span className="text-sm text-muted-foreground">Уншиж байна...</span>
+                  ) : secretValue ? (
+                    <span className="font-mono text-lg font-bold tracking-widest select-all">
+                      {secretValue}
+                    </span>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">Код байхгүй</span>
+                  )}
+                </div>
+              </div>
 
               {/* ── Хугацааны мэдээлэл ── */}
               {(startDate || endsAt || duration > 0) && (
@@ -426,6 +489,28 @@ export default function LotDetailModal({ lot, onClose }: LotDetailModalProps) {
                   ))}
                 </Section>
               )}
+
+              {/* ── Худалдан авагчийн мэдээлэл ── */}
+              <div className="rounded-xl border overflow-hidden">
+                <p className="font-semibold text-sm px-4 py-3 bg-muted/40 border-b">Худалдан авагчийн мэдээлэл</p>
+                <div className="divide-y">
+                  {buyerLoading ? (
+                    <div className="px-4 py-3 text-sm text-muted-foreground">Уншиж байна...</div>
+                  ) : buyer ? (
+                    <>
+                      {(buyer.first_name || buyer.last_name) && (
+                        <InfoRow label="Нэр" value={[buyer.first_name, buyer.last_name].filter(Boolean).join(" ")} />
+                      )}
+                      {buyer.username && <InfoRow label="Хэрэглэгчийн нэр" value={buyer.username} />}
+                      {buyer.informal && <InfoRow label="Дэлгэрэнгүй нэр" value={buyer.informal} />}
+                      {buyer.email && <InfoRow label="И-мэйл" value={buyer.email} />}
+                      {buyer.phone && <InfoRow label="Утас" value={buyer.phone} />}
+                    </>
+                  ) : (
+                    <div className="px-4 py-3 text-sm text-muted-foreground">Мэдээлэл байхгүй</div>
+                  )}
+                </div>
+              </div>
 
             </div>
           </div>
