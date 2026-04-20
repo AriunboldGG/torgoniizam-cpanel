@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Dashboard",
-  description: "Admin Dashboard",
+  title: "Хянах самбар",
+  description: "Admin Хянах самбар",
   icons: {
     icon: "/svg/main-logo.svg",
   },

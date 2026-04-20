@@ -23,9 +23,9 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const navItems = [
-  { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { title: "Product List", href: "/dashboard/products", icon: List },
-  { title: "Add Product", href: "/dashboard/products/add", icon: PlusCircle },
+  { title: "Хянах самбар", href: "/dashboard", icon: LayoutDashboard },
+  { title: "Бүтээгдэхүүний жагсаалт", href: "/dashboard/products", icon: List },
+  { title: "Бүтээгдэхүүн нэмэх", href: "/dashboard/products/add", icon: PlusCircle },
 ];
 
 export function AppSidebar() {
