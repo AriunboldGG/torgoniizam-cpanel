@@ -83,7 +83,7 @@ export function DashboardHeader() {
         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
         <Input
           type="search"
-          placeholder="Search..."
+          placeholder="Хайх..."
           className="pl-8 bg-muted/40 border-0 focus-visible:ring-1"
         />
       </div>
@@ -177,51 +177,51 @@ export function DashboardHeader() {
           {/* Fields */}
           <div className="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Нэр (First name)</Label>
+              <Label className="text-xs text-muted-foreground">Нэр</Label>
               <Input readOnly value={user.first_name ?? ""} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Овог (Last name)</Label>
+              <Label className="text-xs text-muted-foreground">Овог</Label>
               <Input readOnly value={user.last_name ?? ""} />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
-              <Label className="text-xs text-muted-foreground">Нэр дэвшилт (Informal)</Label>
+              <Label className="text-xs text-muted-foreground">Байгууллага</Label>
               <Input readOnly value={user.informal ?? ""} />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
-              <Label className="text-xs text-muted-foreground">Имэйл (Email)</Label>
+              <Label className="text-xs text-muted-foreground">Имэйл</Label>
               <Input readOnly value={user.email ?? ""} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Нэвтрэх нэр (Username)</Label>
+              <Label className="text-xs text-muted-foreground">Нэвтрэх нэр</Label>
               <Input readOnly value={user.username ?? ""} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Утас (Phone)</Label>
+              <Label className="text-xs text-muted-foreground">Утас</Label>
               <Input readOnly value={user.phone ?? ""} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Регистр (Register No)</Label>
+              <Label className="text-xs text-muted-foreground">Регистр</Label>
               <Input readOnly value={user.register_no ?? ""} />
             </div>
-            <div className="space-y-1.5">
+            {/* <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Topup ID</Label>
               <Input readOnly value={user.topup_id ?? ""} />
-            </div>
+            </div> */}
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Хот (City)</Label>
+              <Label className="text-xs text-muted-foreground">Хот</Label>
               <Input readOnly value={user.city ?? ""} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Дүүрэг (District)</Label>
+              <Label className="text-xs text-muted-foreground">Дүүрэг</Label>
               <Input readOnly value={user.district ?? ""} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Хороо (Quarter)</Label>
+              <Label className="text-xs text-muted-foreground">Хороо</Label>
               <Input readOnly value={user.quarter ?? ""} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Хаяг (Address)</Label>
+              <Label className="text-xs text-muted-foreground">Хаяг</Label>
               <Input readOnly value={user.address ?? ""} />
             </div>
             <div className="space-y-1.5">

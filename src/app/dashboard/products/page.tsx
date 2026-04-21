@@ -126,6 +126,19 @@ function renderValue(val: unknown): string {
 
 // ── Status badge style ────────────────────────────────────────────────────────
 
+const STATUS_MN: Record<string, string> = {
+  all:      "Бүгд",
+  active:   "Идэвхтэй",
+  pending:  "Хүлээгдэж буй",
+  ended:    "Дууссан",
+  rejected: "Татгалзсан",
+  sold:     "Зарагдсан",
+};
+
+function statusMn(status: string): string {
+  return STATUS_MN[status.toLowerCase()] ?? status;
+}
+
 function getStatusLabel(lot: Lot): string {
   const raw = getField(lot, "status", "state", "lot_status", "lot_state", "auction_status");
   if (raw && typeof raw === "object") {
@@ -171,11 +184,19 @@ export default function ProductListPage() {
   const [fetchError, setFetchError] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [statusLabel, setStatusLabel] = useState("Бүгд");
+  const [statusMap, setStatusMap] = useState<Record<string, string>>({});
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [categories, setCategories] = useState<{ key: number; value: string }[]>([]);
   const [selectedLot, setSelectedLot] = useState<Lot | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editingLot, setEditingLot] = useState<Lot | null>(null);
+  const [childCategories, setChildCategories] = useState<{ key: number; value: string }[]>([]);
+  const [selectedParent, setSelectedParent] = useState<string>("");
+  const [selectedChild, setSelectedChild] = useState<string>("");
+  const [limit, setLimit] = useState(25);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
 
   useEffect(() => {
     const token = localStorage.getItem("access_token");
@@ -195,6 +216,18 @@ export default function ProductListPage() {
         if (lotsData?.error) { setFetchError(lotsData.error); return; }
         const lotArr = toArray(lotsData);
         if (lotArr.length > 0) console.log("[lot sample]", lotArr[0]);
+
+        // Build key → Mongolian label map from API status objects
+        const map: Record<string, string> = {};
+        lotArr.forEach((lot) => {
+          const raw = getField(lot, "status", "state", "lot_status", "lot_state", "auction_status");
+          if (raw && typeof raw === "object") {
+            const k = (raw as Record<string, unknown>).key;
+            const v = (raw as Record<string, unknown>).value;
+            if (k !== undefined && v !== undefined) map[String(k).toLowerCase()] = String(v);
+          }
+        });
+        setStatusMap(map);
         setLots(lotArr);
 
         const isNum = (v: unknown) => typeof v === "number" || (typeof v === "string" && /^\d+$/.test(String(v)));
@@ -281,37 +314,131 @@ export default function ProductListPage() {
     }
   }
 
+  // Fetch child categories when parent changes
+  useEffect(() => {
+    if (!selectedParent) {
+      setChildCategories([]);
+      setSelectedChild("");
+      return;
+    }
+    const token = localStorage.getItem("access_token");
+    if (!token) return;
+    fetch(`/api/categories/${selectedParent}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((data) => {
+        const arr = Array.isArray(data) ? data
+          : Array.isArray(data?.data) ? data.data
+          : Array.isArray(data?.results) ? data.results
+          : [];
+        setChildCategories(
+          arr.map((item: any) => ({
+            key: Number(item.id ?? item.key ?? 0),
+            value: String(item.name ?? item.value ?? "")
+          })).filter((c: any) => c.key > 0 && c.value)
+        );
+      })
+      .catch(() => setChildCategories([]));
+  }, [selectedParent]);
+
+  function fetchLots(newOffset = 0, append = false) {
+    const token = localStorage.getItem("access_token");
+    if (!token) return;
+    setLoading(true);
+    fetch(`/api/lots?limit=${limit}&offset=${newOffset}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((lotsData) => {
+        const lotArr = toArray(lotsData);
+        if (append) {
+          setLots((prev) => [...prev, ...lotArr]);
+        } else {
+          setLots(lotArr);
+        }
+        setHasMore(lotArr.length === limit);
+      })
+      .catch(() => setFetchError("Сервертэй холбогдоход алдаа гарлаа."))
+      .finally(() => setLoading(false));
+  }
+
+  // Initial and filter loads
+  useEffect(() => {
+    setOffset(0);
+    fetchLots(0, false);
+  }, [search, statusFilter, categoryFilter]);
+
+  // Load more handler
+  function handleLoadMore() {
+    const newOffset = offset + limit;
+    setOffset(newOffset);
+    fetchLots(newOffset, true);
+  }
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Бүтээгдэхүүний жагсаалт</h1>
 
       {/* Category Filter Tabs */}
       {categories.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setCategoryFilter("all")}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
-              categoryFilter === "all"
-                ? "bg-primary text-primary-foreground border-primary"
-                : "bg-background border-border text-muted-foreground hover:border-primary hover:text-foreground"
-            }`}
-          >
-            Бүгд
-          </button>
-          {categories.map((cat) => (
+        <>
+          <div className="flex flex-wrap gap-2">
             <button
-              key={cat.key}
-              onClick={() => setCategoryFilter(String(cat.key))}
+              onClick={() => {
+                setCategoryFilter("all");
+                setSelectedParent("");
+                setSelectedChild("");
+              }}
               className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
-                categoryFilter === String(cat.key)
+                categoryFilter === "all" && !selectedParent && !selectedChild
                   ? "bg-primary text-primary-foreground border-primary"
                   : "bg-background border-border text-muted-foreground hover:border-primary hover:text-foreground"
               }`}
             >
-              {cat.value}
+              Бүгд
             </button>
-          ))}
-        </div>
+            {categories.map((cat) => (
+              <button
+                key={cat.key}
+                onClick={() => {
+                  if (selectedParent === String(cat.key)) {
+                    setSelectedParent("");
+                    setSelectedChild("");
+                    setCategoryFilter("all");
+                  } else {
+                    setSelectedParent(String(cat.key));
+                    setSelectedChild("");
+                    setCategoryFilter("all");
+                  }
+                }}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                  selectedParent === String(cat.key)
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background border-border text-muted-foreground hover:border-primary hover:text-foreground"
+                }`}
+              >
+                {cat.value}
+              </button>
+            ))}
+          </div>
+          {selectedParent && childCategories.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-2">
+              {childCategories.map((child) => (
+                <button
+                  key={child.key}
+                  onClick={() => {
+                    setSelectedChild(String(child.key));
+                    setCategoryFilter(String(child.key));
+                  }}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                    selectedChild === String(child.key)
+                      ? "bg-blue-500 text-white border-blue-500"
+                      : "bg-background border-border text-muted-foreground hover:border-blue-500 hover:text-foreground"
+                  }`}
+                >
+                  {child.value}
+                </button>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {/* Filters */}
@@ -320,13 +447,13 @@ export default function ProductListPage() {
         <CardContent className="pt-4 pb-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <p className="text-sm font-medium mb-1.5">Search Products</p>
+              <p className="text-sm font-medium mb-1.5">Бүтээгдэхүүн хайх</p>
 
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
 
                 <Input
-                  placeholder="Search by name, ID..."
+                  placeholder="Бүтээгдэхүүн нэр, ID, тайлбараар хайх..."
                   className="pl-8"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -335,24 +462,28 @@ export default function ProductListPage() {
             </div>
 
             <div>
-              <p className="text-sm font-medium mb-1.5">Status</p>
+              <p className="text-sm font-medium mb-1.5">Статус</p>
 
               <Select
                 value={statusFilter}
-                onValueChange={(v) => setStatusFilter(v ?? "all")}
+                onValueChange={(v) => {
+                  const val = v ?? "all";
+                  setStatusFilter(val);
+                  setStatusLabel(val === "all" ? "Бүгд" : (statusMap[val] ?? statusMn(val)));
+                }}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue />
+                  <SelectValue>{statusLabel}</SelectValue>
                 </SelectTrigger>
 
                 <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="all">Бүгд</SelectItem>
 
                   {Array.from(
                     new Set(lots.map((l) => getStatus(l)).filter(Boolean)),
                   ).map((s) => (
                     <SelectItem key={s} value={s}>
-                      {getStatusLabel(lots.find((l) => getStatus(l) === s)!)}
+                      {statusMap[s] ?? statusMn(s)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -386,7 +517,7 @@ export default function ProductListPage() {
         <div className="text-center py-16 text-muted-foreground">
           {lots.length === 0
             ? "Бүтээгдэхүүн олдсонгүй."
-            : "Хайлтад тохирох бүтээгдэхүүн байхгүй."}
+            : "Хайлтад тохирох бүтээгдэхүүн олдсонгүй."}
         </div>
       )}
 
@@ -596,6 +727,16 @@ export default function ProductListPage() {
               </Card>
             );
           })}
+        </div>
+      )}
+
+      {/* Load More Button */}
+
+      {!loading && !fetchError && filtered.length > 0 && hasMore && (
+        <div className="flex justify-center my-6">
+          <Button onClick={handleLoadMore} disabled={loading}>
+            {loading ? "Уншиж байна..." : "Цааш үзэх"}
+          </Button>
         </div>
       )}
 

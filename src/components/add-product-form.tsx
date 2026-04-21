@@ -20,20 +20,21 @@ type Category = { key: number | string; value: string; fee?: number };
 
 const carFieldOptions = {
   condition: ["Шинэ", "Хуучин"],
-  type: ["Sedan", "SUV", "Hatchback", "Crossover", "Pickup", "Van", "Coupe", "Minivan"],
+  type: ["Жийп", "Суудлын тэрэг", "Гэр бүлийн", "Бусад"],
   doors: ["2", "3", "4", "5"],
-  steeringWheel: ["Зүүн", "Баруун"],
-  driveType: ["FWD", "RWD", "AWD", "4WD"],
+  steeringWheel: ["Зөв", "Буруу"],
+  driveType: ["Урдаа FWD", "Хойноо RWD", "Бүх дугуй 4WD", "Бусад"],
   yearOfManufacture: Array.from({ length: 36 }, (_, i) => String(2025 - i)),
   yearOfImport: Array.from({ length: 20 }, (_, i) => String(2025 - i)),
-  engine: ["Бензин", "Дизель", "Цахилгаан", "Гибрид"],
+  engine: ["Бензин", "Дизель", "Цахилгаан", "Хайбрид", "Бусад"],
   engineCapacity: [
-    "1.0","1.2","1.3","1.4","1.5","1.6","1.8","2.0","2.2",
-    "2.4","2.5","2.7","2.8","3.0","3.3","3.5","3.8","4.0","4.5","5.0","5.7","6.0+",
+    "Цахилгаан", "0.4л", "0.5л", "0.6л", "0.8л", "1.0л", "1.2л", "1.4л", "1.5л", "1.6л",
+    "1.8л", "2.0л", "2.4л", "2.5л", "3.0л", "3.5л", "4.0л", "4.6л", "5.0л", "5.7л",
+    "6.0л", "6.2л", "6.4л", "6.5л", "7.0л", "8.0л", "9.0л", "10.0л", "Бусад",
   ],
-  gearbox: ["Автомат", "Механик", "Робот", "Вариатор"],
-  interiorColor: ["Хар", "Саарал", "Цагаан", "Бор", "Бежевый", "Улаан", "Цэнхэр"],
-  color: ["Цагаан","Хар","Мөнгө","Саарал","Улаан","Цэнхэр","Ногоон","Шар","Хүрэн","Бор"],
+  gearbox: ["Автомат", "Механик"],
+  interiorColor: ["Хар", "Саарал", "Цагаан", "Бор", "Шаргал", "Улаан", "Цэнхэр", "Ногоон", "Бусад"],
+  color: ["Цагаан","Хар","Мөнгө","Саарал","Улаан","Цэнхэр","Ногоон","Шар","Хүрэн","Бор","Бусад"],
 };
 
 const durations = ["1", "3", "6"];
@@ -433,16 +434,16 @@ export default function AddProductForm() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {(
                 [
-                  ["condition", "Нөхцөл (Condition)"],
-                  ["type", "Төрөл (Type)"],
-                  ["doors", "Хаалга (Door)"],
-                  ["steeringWheel", "Хурд (Steering Wheel)"],
-                  ["driveType", "Хөтлөгч (Drive Type)"],
-                  ["yearOfManufacture", "Үйлдвэрлэсэн он (Year of Manufacture)"],
-                  ["yearOfImport", "Орж ирсэн он (Year of Import)"],
-                  ["engine", "Хөдөлгүүр (Engine)"],
-                  ["engineCapacity", "Мотор багтаамж (Engine Capacity)"],
-                  ["gearbox", "Хурдны хайрцаг (Gearbox)"],
+                  ["condition", "Нөхцөл"],
+                  ["type", "Төрөл"],
+                  ["doors", "Хаалга"],
+                  ["steeringWheel", "Хурд"],
+                  ["driveType", "Хөтлөгч"],
+                  ["yearOfManufacture", "Үйлдвэрлэсэн он"],
+                  ["yearOfImport", "Орж ирсэн он"],
+                  ["engine", "Хөдөлгүүр"],
+                  ["engineCapacity", "Мотор багтаамж"],
+                  ["gearbox", "Хурдны хайрцаг"],
                 ] as [keyof typeof carFieldOptions, string][]
               ).map(([field, label]) => (
                 <div key={field} className="space-y-1.5">
@@ -457,22 +458,22 @@ export default function AddProductForm() {
               ))}
 
               <div className="space-y-1.5">
-                <Label>Дотор өнгө (Interior Color)</Label>
+                <Label>Дотор өнгө</Label>
                 <Input placeholder="e.g., Хар, Саарал..." value={carFields.interiorColor} onChange={(e) => setCarField("interiorColor", e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label>Явсан (Mileage)</Label>
+                <Label>Явсан км</Label>
                 <div className="relative">
                   <Input placeholder="e.g., 8000" value={carFields.mileage} onChange={(e) => setCarField("mileage", e.target.value.replace(/[^0-9]/g, ""))} className="pr-12" />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium">KM</span>
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label>Өнгө (Color)</Label>
+                <Label>Өнгө</Label>
                 <Input placeholder="e.g., Цагаан, Хар..." value={carFields.color} onChange={(e) => setCarField("color", e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label>Арлын дугаар (Chassis Number/VIN)</Label>
+                <Label>Арлын дугаар</Label>
                 <Input placeholder="e.g., JT1234567890123456" value={carFields.chassis} onChange={(e) => setCarField("chassis", e.target.value)} />
               </div>
             </div>
