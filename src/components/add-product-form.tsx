@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-type Category = { key: number | string; value: string };
+type Category = { key: number | string; value: string; fee?: number };
 
 const carFieldOptions = {
   condition: ["Шинэ", "Хуучин"],
@@ -55,39 +55,45 @@ const isNum = (v: unknown) =>
 
 function parseCategoryList(raw: Record<string, unknown>[]): Category[] {
   return raw.map((item) => {
-    if (item.id !== undefined && isNum(item.id))
-      return { key: Number(item.id), value: String(item.name ?? item.value ?? item.key ?? "") };
-    if (item.key !== undefined && item.value !== undefined) {
-      if (isNum(item.key) && !isNum(item.value)) return { key: Number(item.key), value: String(item.value) };
-      if (!isNum(item.key) && isNum(item.value)) return { key: Number(item.value), value: String(item.key) };
+    const fee = typeof item.fee === "number" ? item.fee : undefined;
+    // Explicit id + name fields
+    if (item.id !== undefined && isNum(item.id)) {
+      const name = item.name ?? item.label ?? item.title ?? item.display_name;
+      if (name !== undefined && name !== null)
+        return { key: Number(item.id), value: String(name), fee };
     }
-    return { key: Number(item.id ?? item.key ?? 0), value: String(item.name ?? item.value ?? "") };
+    // key/value pair — detect which side is the ID and which is the name
+    if (item.key !== undefined && item.value !== undefined) {
+      if (isNum(item.key) && !isNum(item.value))
+        return { key: Number(item.key), value: String(item.value), fee };
+      if (!isNum(item.key) && isNum(item.value))
+        return { key: Number(item.value), value: String(item.key), fee };
+    }
+    const key = Number(item.id ?? item.key ?? item.pk ?? 0);
+    const value = String(item.name ?? item.label ?? item.title ?? item.display_name ?? item.value ?? key);
+    return { key, value, fee };
   });
 }
 
 function parseChildCategoryList(rawArr: unknown[]): Category[] {
   return rawArr.map((unknownItem) => {
     const item = unknownItem as Record<string, unknown>;
-    const idFields = ["id", "pk", "subcategory_id", "cat_id"];
-    const nameFields = ["name", "label", "title", "display_name"];
-    for (const idField of idFields) {
-      if (item[idField] !== undefined && isNum(item[idField])) {
-        const nameCandidate = nameFields.map((f) => item[f]).find((v) => v !== undefined && v !== null);
-        return {
-          key: item[idField] as number | string,
-          value: nameCandidate != null ? String(nameCandidate) : String(item[idField]),
-        };
-      }
+    // Explicit id + name fields
+    if (item.id !== undefined && isNum(item.id)) {
+      const name = item.name ?? item.label ?? item.title ?? item.display_name;
+      if (name !== undefined && name !== null)
+        return { key: Number(item.id), value: String(name) };
     }
-    const k = item["key"];
-    const v = item["value"];
-    if (k !== undefined && v !== undefined) {
-      if (isNum(k) && !isNum(v)) return { key: k as number | string, value: String(v) };
-      if (!isNum(k) && isNum(v)) return { key: v as number | string, value: String(k) };
-      if (isNum(k)) return { key: k as number | string, value: String(v) };
-      return { key: v as number | string, value: String(k) };
+    // key/value pair — detect which side is the ID and which is the name
+    if (item.key !== undefined && item.value !== undefined) {
+      if (isNum(item.key) && !isNum(item.value))
+        return { key: Number(item.key), value: String(item.value) };
+      if (!isNum(item.key) && isNum(item.value))
+        return { key: Number(item.value), value: String(item.key) };
     }
-    return { key: String(item["id"] ?? item["key"] ?? ""), value: String(item["name"] ?? item["value"] ?? "") };
+    const key = Number(item.id ?? item.pk ?? item.subcategory_id ?? item.cat_id ?? item.key ?? 0);
+    const value = String(item.name ?? item.label ?? item.title ?? item.display_name ?? item.value ?? key);
+    return { key, value };
   });
 }
 
@@ -99,6 +105,7 @@ export default function AddProductForm() {
   const [catsLoading, setCatsLoading] = useState(true);
   const [childCategories, setChildCategories] = useState<Category[]>([]);
   const [childLoading, setChildLoading] = useState(false);
+  const [categoryFee, setCategoryFee] = useState<number>(0.1);
 
   // ── General fields ──
   const [name, setName] = useState("");
@@ -153,7 +160,13 @@ export default function AddProductForm() {
 
   // Load child categories when parent changes
   useEffect(() => {
-    if (!categoryKey) { setChildCategories([]); setSubCategory(""); setSubCategoryKey(""); return; }
+    if (!categoryKey) {
+      setChildCategories([]);
+      setSubCategory("");
+      setSubCategoryKey("");
+      setCategoryFee(0.1);
+      return;
+    }
     const token = localStorage.getItem("access_token");
     if (!token) return;
     setChildLoading(true);
@@ -177,7 +190,7 @@ export default function AddProductForm() {
   const isCar = catUpper.includes("АВТО") || catUpper.includes("CAR") || catUpper.includes("МАШИН");
 
   const priceNum = Number(price.replace(/[^0-9]/g, "")) || 0;
-  const systemFee = Math.round(priceNum * 0.1);
+  const systemFee = Math.round(priceNum * categoryFee);
   const auctionStartingPrice = priceNum + systemFee;
   const startDateOptions = computeStartDateOptions();
   const hourOptions = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, "0") + ":00")
@@ -314,13 +327,16 @@ export default function AddProductForm() {
                   const found = categories.find((c) => String(c.key) === v);
                   setCategory(found?.value ?? "");
                   setCategoryKey(Number(v));
+                  setCategoryFee(typeof found?.fee === "number" && found.fee > 0 ? found.fee : 0.1);
                   setSubCategory("");
                   setSubCategoryKey("");
                   setChildCategories([]);
                 }}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder={catsLoading ? "Ачааллаж байна..." : "Ангилал сонгоно уу"} />
+                  <SelectValue placeholder={catsLoading ? "Ачааллаж байна..." : "Ангилал сонгоно уу"}>
+                    {category || undefined}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {categories.map((c) => (
@@ -348,7 +364,9 @@ export default function AddProductForm() {
                 }}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Дэд ангилал сонгоно уу" />
+                  <SelectValue placeholder="Дэд ангилал сонгоно уу">
+                    {subCategory || undefined}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {childCategories.map((c) => (
@@ -392,7 +410,7 @@ export default function AddProductForm() {
                     <span>{priceNum.toLocaleString()} MNT</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Системийн шимтгэл(10%):</span>
+                    <span className="text-muted-foreground">Системийн шимтгэл({Math.round(categoryFee * 100)}%):</span>
                     <span className="text-orange-500">+{systemFee.toLocaleString()} MNT</span>
                   </div>
                   <div className="flex justify-between border-t pt-1.5 font-bold">
@@ -561,7 +579,7 @@ export default function AddProductForm() {
             </div>
           )}
           <p className="text-xs text-muted-foreground">
-            {imagePaths.length}/10 зураг нэмэгдсэн. Анхны зураг голлогч зураг болно.
+            {imagePaths.length}/10 зураг нэмэгдсэн. Анхны зураг нүүр зураг болно.
           </p>
         </CardContent>
       </Card>

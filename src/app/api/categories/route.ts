@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/lot/category`, {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/lot/category?has_attribute=true`, {
     method: "GET",
     headers: {
       Authorization: authHeader,
