@@ -430,7 +430,7 @@ export default function AddProductForm() {
       {isCar && (
         <Card>
           <CardContent className="pt-6 space-y-4">
-            <h2 className="font-bold text-lg">Автомашины мэдээлэл (Vehicle Information)</h2>
+            <h2 className="font-bold text-lg">Автомашины мэдээлэл</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {(
                 [
@@ -449,7 +449,7 @@ export default function AddProductForm() {
                 <div key={field} className="space-y-1.5">
                   <Label>{label}</Label>
                   <Select value={carFields[field]} onValueChange={(v) => setCarField(field, v ?? "")}>
-                    <SelectTrigger className="w-full"><SelectValue placeholder="Select an option" /></SelectTrigger>
+                    <SelectTrigger className="w-full"><SelectValue placeholder="Сонгоно уу" /></SelectTrigger>
                     <SelectContent className="max-h-60">
                       {carFieldOptions[field].map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
                     </SelectContent>
@@ -496,7 +496,7 @@ export default function AddProductForm() {
                   if (startTime && parseInt(startTime) + Number(v) > 24) setStartTime("");
                 }}
               >
-                <SelectTrigger className="w-full"><SelectValue placeholder="Select an option" /></SelectTrigger>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Сонгоно уу" /></SelectTrigger>
                 <SelectContent>
                   {durations.map((d) => <SelectItem key={d} value={d}>{d} цаг</SelectItem>)}
                 </SelectContent>
@@ -505,7 +505,7 @@ export default function AddProductForm() {
             <div className="space-y-1.5">
               <Label>Дуудлага худалдаа эхлэх огноо</Label>
               <Select value={startDate} onValueChange={(v) => { setStartDate(v ?? ""); setStartTime(""); }}>
-                <SelectTrigger className="w-full"><SelectValue placeholder="Select an option" /></SelectTrigger>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Сонгоно уу" /></SelectTrigger>
                 <SelectContent>
                   {startDateOptions.map((d) => <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>)}
                 </SelectContent>
@@ -514,7 +514,7 @@ export default function AddProductForm() {
                 <div className="space-y-1.5 pt-1">
                   <Label>Эхлэх цаг</Label>
                   <Select value={startTime} onValueChange={(v) => setStartTime(v ?? "")}>
-                    <SelectTrigger className="w-full"><SelectValue placeholder="Select an option" /></SelectTrigger>
+                    <SelectTrigger className="w-full"><SelectValue placeholder="Сонгоно уу" /></SelectTrigger>
                     <SelectContent className="max-h-60">
                       {hourOptions.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
                     </SelectContent>

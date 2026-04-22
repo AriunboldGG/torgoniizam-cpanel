@@ -17,6 +17,28 @@ import {
 export type Lot = Record<string, unknown>;
 type AttrPair = { key: string; value: string };
 
+// ── Car attribute key → Mongolian label map ───────────────────────────────────
+const CAR_ATTR_LABELS: Record<string, string> = {
+  condition:           "Нөхцөл",
+  type:                "Төрөл",
+  doors:               "Хаалга",
+  steeringWheel:       "Жолооны байрлал",
+  driveType:           "Хөтлөгч",
+  yearOfManufacture:   "Үйлдвэрлэсэн он",
+  yearOfImport:        "Орж ирсэн он",
+  engine:              "Хөдөлгүүр",
+  engineCapacity:      "Мотор багтаамж",
+  gearbox:             "Хурдны хайрцаг",
+  interiorColor:       "Дотор өнгө",
+  mileage:             "Явсан км",
+  color:               "Өнгө",
+  chassis:             "Арлын дугаар",
+};
+
+function attrLabel(key: string): string {
+  return CAR_ATTR_LABELS[key] ?? key;
+}
+
 // ── Field helpers ─────────────────────────────────────────────────────────────
 
 function getField(lot: Lot, ...keys: string[]): unknown {
@@ -476,7 +498,7 @@ console.log("LotDetailModal rendered with lot:", secretValue);
               {attributes.length > 0 && (
                 <Section title="Техникийн үзүүлэлтүүд">
                   {attributes.map((attr) => (
-                    <InfoRow key={attr.key} label={attr.key} value={attr.value} />
+                    <InfoRow key={attr.key} label={attrLabel(attr.key)} value={attr.value} />
                   ))}
                 </Section>
               )}
