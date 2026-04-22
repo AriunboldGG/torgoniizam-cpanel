@@ -237,7 +237,6 @@ export default function LotDetailModal({ lot, onClose }: LotDetailModalProps) {
   const [isZoomed, setIsZoomed] = useState(false);
   const [secretValue, setSecretValue] = useState<string | null>(null);
   const [secretLoading, setSecretLoading] = useState(false);
-console.log("LotDetailModal rendered with lot:", secretValue);
   type Buyer = {
     username?: string;
     first_name?: string;

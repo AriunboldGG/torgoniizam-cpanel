@@ -215,7 +215,6 @@ export default function ProductListPage() {
       .then(([lotsData, catsData]) => {
         if (lotsData?.error) { setFetchError(lotsData.error); return; }
         const lotArr = toArray(lotsData);
-        if (lotArr.length > 0) console.log("[lot sample]", lotArr[0]);
 
         // Build key → Mongolian label map from API status objects
         const map: Record<string, string> = {};
@@ -301,10 +300,10 @@ export default function ProductListPage() {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok || res.status === 204) {
+      const data = await res.json().catch(() => ({}));
+      if (res.ok || res.status === 204 || data?.status_code === "ok") {
         setLots((prev) => prev.filter((l) => getId(l) !== lotId));
       } else {
-        const data = await res.json().catch(() => ({}));
         alert(data?.msg ?? data?.error ?? "Устгахад алдаа гарлаа.");
       }
     } catch {
