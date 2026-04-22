@@ -8,13 +8,20 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/lot/seller/list`, {
-    method: "GET",
-    headers: {
-      Authorization: authHeader,
-      "Content-Type": "application/json",
-    },
-  });
+  const { searchParams } = new URL(req.url);
+  const limit = searchParams.get("limit") ?? "25";
+  const offset = searchParams.get("offset") ?? "0";
+
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/api/v1/lot/seller/list?limit=${limit}&offset=${offset}`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: authHeader,
+        "Content-Type": "application/json",
+      },
+    }
+  );
 
   const data = await res.json().catch(() => ({}));
 

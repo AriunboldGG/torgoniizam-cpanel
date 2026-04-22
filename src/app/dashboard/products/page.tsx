@@ -194,41 +194,18 @@ export default function ProductListPage() {
   const [childCategories, setChildCategories] = useState<{ key: number; value: string }[]>([]);
   const [selectedParent, setSelectedParent] = useState<string>("");
   const [selectedChild, setSelectedChild] = useState<string>("");
-  const [limit, setLimit] = useState(25);
-  const [offset, setOffset] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
+  const limit = 25;
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const totalPages = Math.max(1, Math.ceil(totalCount / limit));
 
+  // Fetch categories once on mount
   useEffect(() => {
     const token = localStorage.getItem("access_token");
-
-    if (!token) {
-      setFetchError("Нэвтрэх шаардлагатай.");
-      setLoading(false);
-      return;
-    }
-
-    // Fetch lots and categories in parallel
-    Promise.all([
-      fetch("/api/lots", { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()),
-      fetch("/api/categories", { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()),
-    ])
-      .then(([lotsData, catsData]) => {
-        if (lotsData?.error) { setFetchError(lotsData.error); return; }
-        const lotArr = toArray(lotsData);
-
-        // Build key → Mongolian label map from API status objects
-        const map: Record<string, string> = {};
-        lotArr.forEach((lot) => {
-          const raw = getField(lot, "status", "state", "lot_status", "lot_state", "auction_status");
-          if (raw && typeof raw === "object") {
-            const k = (raw as Record<string, unknown>).key;
-            const v = (raw as Record<string, unknown>).value;
-            if (k !== undefined && v !== undefined) map[String(k).toLowerCase()] = String(v);
-          }
-        });
-        setStatusMap(map);
-        setLots(lotArr);
-
+    if (!token) return;
+    fetch("/api/categories", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((catsData) => {
         const isNum = (v: unknown) => typeof v === "number" || (typeof v === "string" && /^\d+$/.test(String(v)));
         const rawCats: Record<string, unknown>[] = Array.isArray(catsData) ? catsData
           : Array.isArray(catsData?.data) ? catsData.data
@@ -245,8 +222,7 @@ export default function ProductListPage() {
         }).filter((c) => c.key > 0 && c.value);
         setCategories(catList);
       })
-      .catch(() => setFetchError("Сервертэй холбогдоход алдаа гарлаа."))
-      .finally(() => setLoading(false));
+      .catch(() => {});
   }, []);
 
   const filtered = lots.filter((lot) => {
@@ -274,9 +250,12 @@ export default function ProductListPage() {
       ? String(lotCatObj.name ?? lotCatObj.title ?? lotCatObj.value ?? "").toLowerCase()
       : String(lotCatRaw ?? "").toLowerCase();
     const selectedCatName = categories.find((c) => String(c.key) === categoryFilter)?.value?.toLowerCase() ?? "";
+    const isParentFilter = categoryFilter !== "all" && categories.some((c) => String(c.key) === categoryFilter);
+    const childIds = isParentFilter ? childCategories.map((c) => String(c.key)) : [];
     const matchCategory =
       categoryFilter === "all" ||
       lotCatId === categoryFilter ||
+      (isParentFilter && childIds.length > 0 && childIds.includes(lotCatId)) ||
       (selectedCatName !== "" && lotCatName === selectedCatName);
 
     return matchSearch && matchStatus && matchCategory;
@@ -339,37 +318,54 @@ export default function ProductListPage() {
       .catch(() => setChildCategories([]));
   }, [selectedParent]);
 
-  function fetchLots(newOffset = 0, append = false) {
+  function fetchLots(targetPage: number) {
     const token = localStorage.getItem("access_token");
-    if (!token) return;
+    if (!token) { setFetchError("Нэвтрэх шаардлагатай."); setLoading(false); return; }
     setLoading(true);
-    fetch(`/api/lots?limit=${limit}&offset=${newOffset}`, { headers: { Authorization: `Bearer ${token}` } })
+    setFetchError("");
+    const offset = (targetPage - 1) * limit;
+    fetch(`/api/lots?limit=${limit}&offset=${offset}`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
       .then((lotsData) => {
+        if (lotsData?.error) { setFetchError(lotsData.error); return; }
         const lotArr = toArray(lotsData);
-        if (append) {
-          setLots((prev) => [...prev, ...lotArr]);
-        } else {
-          setLots(lotArr);
-        }
-        setHasMore(lotArr.length === limit);
+        // Build status label map
+        const map: Record<string, string> = {};
+        lotArr.forEach((lot) => {
+          const raw = getField(lot, "status", "state", "lot_status", "lot_state", "auction_status");
+          if (raw && typeof raw === "object") {
+            const k = (raw as Record<string, unknown>).key;
+            const v = (raw as Record<string, unknown>).value;
+            if (k !== undefined && v !== undefined) map[String(k).toLowerCase()] = String(v);
+          }
+        });
+        setStatusMap((prev) => ({ ...prev, ...map }));
+        setLots(lotArr);
+        // Try to read total count from response envelope
+        const total =
+          typeof lotsData?.count === "number" ? lotsData.count :
+          typeof lotsData?.total === "number" ? lotsData.total :
+          typeof lotsData?.total_count === "number" ? lotsData.total_count :
+          // fallback: if returned fewer than limit, we know exact total
+          offset + lotArr.length;
+        setTotalCount(total);
       })
       .catch(() => setFetchError("Сервертэй холбогдоход алдаа гарлаа."))
       .finally(() => setLoading(false));
   }
 
-  // Initial and filter loads
+  // Reset to page 1 and fetch whenever filters change
   useEffect(() => {
-    setOffset(0);
-    fetchLots(0, false);
+    setPage(1);
+    fetchLots(1);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, statusFilter, categoryFilter]);
 
-  // Load more handler
-  function handleLoadMore() {
-    const newOffset = offset + limit;
-    setOffset(newOffset);
-    fetchLots(newOffset, true);
-  }
+  // Fetch when page changes (but not on filter-driven resets handled above)
+  useEffect(() => {
+    fetchLots(page);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
 
   return (
     <div className="space-y-6">
@@ -404,7 +400,7 @@ export default function ProductListPage() {
                   } else {
                     setSelectedParent(String(cat.key));
                     setSelectedChild("");
-                    setCategoryFilter("all");
+                    setCategoryFilter(String(cat.key));
                   }
                 }}
                 className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
@@ -729,13 +725,54 @@ export default function ProductListPage() {
         </div>
       )}
 
-      {/* Load More Button */}
-
-      {!loading && !fetchError && filtered.length > 0 && hasMore && (
-        <div className="flex justify-center my-6">
-          <Button onClick={handleLoadMore} disabled={loading}>
-            {loading ? "Уншиж байна..." : "Цааш үзэх"}
+      {/* Pagination */}
+      {!loading && !fetchError && totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 my-6">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1}
+          >
+            ← Өмнөх
           </Button>
+          <div className="flex items-center gap-1">
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
+              .reduce<(number | "...")[]>((acc, p, idx, arr) => {
+                if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push("...");
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((p, idx) =>
+                p === "..." ? (
+                  <span key={`ellipsis-${idx}`} className="px-2 text-muted-foreground text-sm">…</span>
+                ) : (
+                  <button
+                    key={p}
+                    onClick={() => setPage(p as number)}
+                    className={`w-8 h-8 rounded text-sm font-medium transition-colors ${
+                      page === p
+                        ? "bg-primary text-primary-foreground"
+                        : "border border-border hover:bg-muted"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                )
+              )}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+          >
+            Дараах →
+          </Button>
+          <span className="text-sm text-muted-foreground ml-2">
+            {page}/{totalPages} хуудас · Нийт {totalCount}
+          </span>
         </div>
       )}
 
