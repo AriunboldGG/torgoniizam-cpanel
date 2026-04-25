@@ -254,7 +254,7 @@ export default function AddProductForm() {
         name: name.trim(),
         description: description.trim(),
         category: finalCategory,
-        starting_price: auctionStartingPrice,
+        starting_price: priceNum,
         bid_increment: Number(bidIncrement) || 10000,
         duration: Number(duration),
         start_date: `${startDate} ${startTime}:00`,
@@ -391,7 +391,7 @@ export default function AddProductForm() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
             <div className="space-y-1.5">
-              <Label>Үнэ (Price) <span className="text-red-500">*</span></Label>
+              <Label>Барааны үнэ <span className="text-red-500">*</span></Label>
               <Input
                 placeholder="e.g., 12000000"
                 value={price}
@@ -404,14 +404,13 @@ export default function AddProductForm() {
 
             {priceNum > 0 && (
               <div className="rounded-lg border bg-muted/30 p-4 space-y-2 text-sm">
-                <p className="font-semibold">Дуудлага худалдаа эхлэх үнэ (MNT)</p>
                 <div className="space-y-1.5">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Таны үнэ:</span>
+                    <span className="text-muted-foreground">Таны оруулсан үнэ:</span>
                     <span>{priceNum.toLocaleString()} MNT</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Системийн шимтгэл({Math.round(categoryFee * 100)}%):</span>
+                    <span className="text-muted-foreground">Дэнчингийн үнэ:</span>
                     <span className="text-orange-500">+{systemFee.toLocaleString()} MNT</span>
                   </div>
                   <div className="flex justify-between border-t pt-1.5 font-bold">
