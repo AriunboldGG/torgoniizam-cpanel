@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import imageCompression from "browser-image-compression";
 import { useRouter } from "next/navigation";
 import { Plus, X, Loader2, CheckCircle2 } from "lucide-react";
 import { assetUrl } from "@/lib/utils";
@@ -197,6 +198,28 @@ export default function AddProductForm() {
   const hourOptions = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, "0") + ":00")
     .filter((h) => parseInt(h) >= 8 && (!duration || parseInt(h) + Number(duration) <= 24));
 
+  const MAX_IMAGE_MB = 3;
+
+  const compressIfNeeded = async (file: File): Promise<File> => {
+    const isHeic = file.type === "image/heic" || file.type === "image/heif" || file.name.toLowerCase().endsWith(".heic") || file.name.toLowerCase().endsWith(".heif");
+    const isCompressible = isHeic || /^image\/(jpeg|png|webp)$/i.test(file.type);
+    if (!isCompressible) return file;
+    if (file.size <= MAX_IMAGE_MB * 1024 * 1024 && !isHeic) return file;
+    try {
+      const compressed = await imageCompression(file, {
+        maxSizeMB: MAX_IMAGE_MB,
+        maxWidthOrHeight: 3840,
+        useWebWorker: true,
+        fileType: isHeic ? "image/jpeg" : undefined,
+      });
+      return new File([compressed], isHeic ? file.name.replace(/\.heic$/i, ".jpg").replace(/\.heif$/i, ".jpg") : file.name, {
+        type: compressed.type,
+      });
+    } catch {
+      return file;
+    }
+  };
+
   const uploadImages = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     const token = localStorage.getItem("access_token");
@@ -205,8 +228,9 @@ export default function AddProductForm() {
     await Promise.all(
       Array.from(files).map(async (file) => {
         try {
+          const processedFile = await compressIfNeeded(file);
           const fd = new FormData();
-          fd.append("file", file);
+          fd.append("file", processedFile);
           const res = await fetch("/api/v1/file/upload", {
             method: "POST",
             headers: { Authorization: `Bearer ${token}` },
@@ -539,7 +563,7 @@ export default function AddProductForm() {
               Зураг нэмэх
               <input
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
                 multiple
                 className="hidden"
                 onChange={(e) => uploadImages(e.target.files)}
