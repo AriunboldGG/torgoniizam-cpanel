@@ -223,6 +223,34 @@ function Section({
   );
 }
 
+// ── Pickup deadline countdown ───────────────────────────────────────────────
+
+function useCountdown(deadlineStr: string | null): string {
+  const [display, setDisplay] = useState("");
+
+  useEffect(() => {
+    if (!deadlineStr) { setDisplay(""); return; }
+    function calc() {
+      const diff = new Date(deadlineStr!.replace(" ", "T")).getTime() - Date.now();
+      if (diff <= 0) { setDisplay("Дууссан"); return; }
+      const d = Math.floor(diff / 86400000);
+      const h = Math.floor((diff % 86400000) / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setDisplay(
+        d > 0
+          ? `${d}өд ${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`
+          : `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`
+      );
+    }
+    calc();
+    const id = setInterval(calc, 1000);
+    return () => clearInterval(id);
+  }, [deadlineStr]);
+
+  return display;
+}
+
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface LotDetailModalProps {
@@ -237,6 +265,7 @@ export default function LotDetailModal({ lot, onClose }: LotDetailModalProps) {
   const [isZoomed, setIsZoomed] = useState(false);
   const [secretValue, setSecretValue] = useState<string | null>(null);
   const [secretLoading, setSecretLoading] = useState(false);
+  const [pickupDeadlineFromApi, setPickupDeadlineFromApi] = useState<string | null>(null);
   type Buyer = {
     username?: string;
     first_name?: string;
@@ -249,37 +278,29 @@ export default function LotDetailModal({ lot, onClose }: LotDetailModalProps) {
   const [buyerLoading, setBuyerLoading] = useState(false);
 
   useEffect(() => {
-    if (!lot) { setSecretValue(null); setBuyer(null); return; }
+    if (!lot) { setSecretValue(null); setBuyer(null); setPickupDeadlineFromApi(null); return; }
     const lotId = String(lot.id ?? lot.lot_id ?? lot.uuid ?? lot.pk ?? "");
     if (!lotId) { setSecretValue(null); setBuyer(null); return; }
     const token = localStorage.getItem("access_token");
     if (!token) { setSecretValue(null); setBuyer(null); return; }
 
-    // Fetch secret_value
+    // Fetch secret_value, pickup_deadline, and buyer info from won API
     setSecretLoading(true);
-    fetch(`/api/v1/lot/detail/${lotId}/`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json().catch(() => ({})))
-      .then((data) => {
-        const sv = data?.secret_value ?? data?.data?.secret_value ?? null;
-        setSecretValue(sv !== undefined && sv !== null ? String(sv) : null);
-      })
-      .catch(() => setSecretValue(null))
-      .finally(() => setSecretLoading(false));
-
-    // Fetch buyer info
     setBuyerLoading(true);
     fetch(`/api/v1/bid/won/${lotId}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json().catch(() => ({})))
       .then((data) => {
+        const sv = data?.secret_value ?? data?.data?.secret_value ?? null;
+        setSecretValue(sv !== undefined && sv !== null ? String(sv) : null);
+        const pd = data?.pickup_deadline ?? data?.data?.pickup_deadline ?? null;
+        setPickupDeadlineFromApi(pd ? String(pd) : null);
         const b = data?.buyer ?? data?.data?.buyer ?? null;
         setBuyer(b && typeof b === "object" ? (b as Buyer) : null);
       })
-      .catch(() => setBuyer(null))
-      .finally(() => setBuyerLoading(false));
+      .catch(() => { setSecretValue(null); setPickupDeadlineFromApi(null); setBuyer(null); })
+      .finally(() => { setSecretLoading(false); setBuyerLoading(false); });
   }, [lot]);
 
   function prevImage(images: string[]) {
@@ -300,13 +321,10 @@ export default function LotDetailModal({ lot, onClose }: LotDetailModalProps) {
     }
   }
 
-  if (!lot) return null;
+  const pickupDeadline = pickupDeadlineFromApi || (lot ? getString(lot, "pickup_deadline") : null);
+  const countdown      = useCountdown(pickupDeadline || null);
 
-  // ── Derived values ──────────────────────────────────────────────────────
-  const images  = getImages(lot);
-  const name    = getName(lot);
-  const refNo   = getString(lot, "reference_no", "ref_no", "lot_no");
-  const desc    = getString(lot, "description", "body", "details");
+  if (!lot) return null;
 
   const rawStatus = getField(lot, "status", "state");
   const sKey      = extractKey(rawStatus);
@@ -320,6 +338,11 @@ export default function LotDetailModal({ lot, onClose }: LotDetailModalProps) {
   const bidIncrement  = getNumber(lot, "bid_increment", "increment", "step");
   const bidsCount     = getNumber(lot, "bids_count", "bid_count", "total_bids", "bids");
 
+  // ── Derived values ────────────────────────────────────────────────
+  const images  = getImages(lot);
+  const name    = getName(lot);
+  const refNo   = getString(lot, "reference_no", "ref_no", "lot_no");
+  const desc    = getString(lot, "description", "body", "details");
   const startDate  = getString(lot, "start_date", "start_time", "starts_at", "started_at", "begin_at");
   const duration   = getNumber(lot, "duration", "duration_hours", "auction_duration");
   const endsAt     =
@@ -414,6 +437,26 @@ export default function LotDetailModal({ lot, onClose }: LotDetailModalProps) {
                   ))}
                 </div>
               )}
+
+              {/* ── Худалдан авагчийн мэдээлэл ── */}
+              <div className="rounded-xl border overflow-hidden">
+                <p className="font-semibold text-sm px-4 py-3 bg-muted/40 border-b">Худалдан авагчийн мэдээлэл</p>
+                <div className="divide-y">
+                  {buyerLoading ? (
+                    <div className="px-4 py-3 text-sm text-muted-foreground">Уншиж байна...</div>
+                  ) : buyer ? (
+                    <>
+                      {(buyer.first_name || buyer.last_name) && (
+                        <InfoRow label="Нэр" value={[buyer.first_name, buyer.last_name].filter(Boolean).join(" ")} />
+                      )}
+                      {buyer.email && <InfoRow label="И-мэйл" value={buyer.email} />}
+                      {buyer.phone && <InfoRow label="Утас" value={buyer.phone} />}
+                    </>
+                  ) : (
+                    <div className="px-4 py-3 text-sm text-muted-foreground">Мэдээлэл байхгүй</div>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* ── Right: Details ── */}
@@ -451,20 +494,28 @@ export default function LotDetailModal({ lot, onClose }: LotDetailModalProps) {
                 />
                 <InfoRow label="Нийт дуудлага"    value={bidsCount > 0 ? String(bidsCount) : ""} />
               </Section>
-              {/* ── Бараа авах код ── */}
-              <div className="rounded-xl border overflow-hidden">
-                <p className="font-semibold text-sm px-4 py-3 bg-muted/40 border-b">Бараа авах код</p>
-                <div className="px-4 py-3">
+              {/* ── Бараа авах код + таймер ── */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-900 px-4 py-3">
+                  <p className="text-xs text-emerald-600 font-medium mb-1">Бараа авах код</p>
                   {secretLoading ? (
                     <span className="text-sm text-muted-foreground">Уншиж байна...</span>
                   ) : secretValue ? (
-                    <span className="font-mono text-lg font-bold tracking-widest select-all">
+                    <span className="font-mono text-lg font-bold tracking-widest select-all text-emerald-800 dark:text-emerald-300">
                       {secretValue}
                     </span>
                   ) : (
                     <span className="text-sm text-muted-foreground">Код байхгүй</span>
                   )}
                 </div>
+                {countdown && (
+                  <div className="rounded-xl border border-orange-200 bg-orange-50 dark:bg-orange-950/30 dark:border-orange-900 px-4 py-3">
+                    <p className="text-xs text-orange-500 font-medium mb-1 flex items-center gap-1">
+                      <Hourglass className="w-3 h-3" /> Бараа авах хугацаа
+                    </p>
+                    <span className="font-mono text-lg font-bold text-orange-700 dark:text-orange-300">{countdown}</span>
+                  </div>
+                )}
               </div>
 
               {/* ── Хугацааны мэдээлэл ── */}
@@ -511,27 +562,6 @@ export default function LotDetailModal({ lot, onClose }: LotDetailModalProps) {
                 </Section>
               )}
 
-              {/* ── Худалдан авагчийн мэдээлэл ── */}
-              <div className="rounded-xl border overflow-hidden">
-                <p className="font-semibold text-sm px-4 py-3 bg-muted/40 border-b">Худалдан авагчийн мэдээлэл</p>
-                <div className="divide-y">
-                  {buyerLoading ? (
-                    <div className="px-4 py-3 text-sm text-muted-foreground">Уншиж байна...</div>
-                  ) : buyer ? (
-                    <>
-                      {(buyer.first_name || buyer.last_name) && (
-                        <InfoRow label="Нэр" value={[buyer.first_name, buyer.last_name].filter(Boolean).join(" ")} />
-                      )}
-                      {buyer.username && <InfoRow label="Хэрэглэгчийн нэр" value={buyer.username} />}
-                      {buyer.informal && <InfoRow label="Дэлгэрэнгүй нэр" value={buyer.informal} />}
-                      {buyer.email && <InfoRow label="И-мэйл" value={buyer.email} />}
-                      {buyer.phone && <InfoRow label="Утас" value={buyer.phone} />}
-                    </>
-                  ) : (
-                    <div className="px-4 py-3 text-sm text-muted-foreground">Мэдээлэл байхгүй</div>
-                  )}
-                </div>
-              </div>
 
             </div>
           </div>

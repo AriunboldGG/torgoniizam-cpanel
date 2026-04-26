@@ -166,16 +166,14 @@ export default function DashboardPage() {
     return { name: label, value: statusCounts[key], color: styleForStatus(key, i, label).color };
   });
 
-  const categoryCounts = lots.reduce<Record<string, number>>((acc, lot) => {
-    const cat = getCategory(lot) || "Бусад";
-    acc[cat] = (acc[cat] ?? 0) + 1;
-    return acc;
-  }, {});
-
-  const barData = Object.entries(categoryCounts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 10)
-    .map(([name, count]) => ({ name, count }));
+  const barData = lots
+    .map((lot) => ({
+      name: getString(lot, "title", "name", "lot_name", "product_name") || String(getField(lot, "id") ?? ""),
+      count: Number(getField(lot, "participant_count") ?? 0),
+    }))
+    .filter((item) => item.name !== "" && item.name !== "Бусад")
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -297,7 +295,7 @@ export default function DashboardPage() {
                   />
                   <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                   <Tooltip />
-                  <Bar dataKey="count" name="Тоо" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="count" name="Оролцогчид" fill="#6366f1" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}

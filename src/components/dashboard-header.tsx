@@ -133,7 +133,7 @@ export function DashboardHeader() {
                   onClick={() => { setMenuOpen(false); setProfileOpen(true); }}
                 >
                   <UserCircle className="h-4 w-4 text-muted-foreground" />
-                  Edit profile
+                  Борлуулагчийн мэдээлэл засах
                 </button>
                 <button className="w-full flex items-center gap-3 px-4 py-2 hover:bg-accent transition-colors">
                   <Settings className="h-4 w-4 text-muted-foreground" />
@@ -165,7 +165,7 @@ export function DashboardHeader() {
         >
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b">
-            <h2 className="text-lg font-semibold">Профайл мэдээлэл</h2>
+            <h2 className="text-lg font-semibold">Борлуулагчийн мэдээлэл засах</h2>
             <button
               onClick={() => setProfileOpen(false)}
               className="rounded-full p-1 hover:bg-muted transition-colors"
