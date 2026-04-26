@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Search, Sun, Moon, UserCircle, Settings, LogOut, ChevronUp, X } from "lucide-react";
+import { Bell, Search, Sun, Moon, UserCircle, Settings, LogOut, ChevronUp, X, Save, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,9 +24,9 @@ interface UserInfo {
   is_active?: boolean;
   avatar?: string | null;
   topup_id?: string;
-  city?: string | null;
-  district?: string | null;
-  quarter?: string | null;
+  city?: { key: number; value: string } | string | null;
+  district?: { key: number; value: string } | string | null;
+  quarter?: { key: number; value: string } | string | null;
   address?: string | null;
 }
 
@@ -35,8 +35,26 @@ export function DashboardHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [user, setUser] = useState<UserInfo>({});
+  const [profileFields, setProfileFields] = useState({ first_name: "", last_name: "", phone: "", email: "" });
+  const [addressFields, setAddressFields] = useState({ city: "", district: "", quarter: "", address: "" });
+  const [addressLabels, setAddressLabels] = useState({ city: "", district: "", quarter: "" });
+  type KV = { key: number; value: string };
+  const [cities, setCities] = useState<KV[]>([]);
+  const [districts, setDistricts] = useState<KV[]>([]);
+  const [quarters, setQuarters] = useState<KV[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+
+  function toKV(data: unknown): KV[] {
+    const arr = Array.isArray(data) ? data
+      : Array.isArray((data as any)?.data) ? (data as any).data
+      : Array.isArray((data as any)?.results) ? (data as any).results
+      : [];
+    return arr.map((i: any) => ({ key: Number(i.id ?? i.key ?? 0), value: String(i.name ?? i.value ?? "") })).filter((i: KV) => i.key > 0);
+  }
 
   useEffect(() => {
     const token = localStorage.getItem("access_token");
@@ -47,7 +65,25 @@ export function DashboardHeader() {
       .then((r) => r.json())
       .then((data) => {
         // API wraps response in { data: {...} }
-        setUser(data?.data ?? data);
+        const u = data?.data ?? data;
+        setUser(u);
+        setProfileFields({
+          first_name: u.first_name ?? "",
+          last_name:  u.last_name  ?? "",
+          phone:      u.phone      ?? "",
+          email:      u.email      ?? "",
+        });
+        setAddressFields({
+          city:     String((u.city     && typeof u.city     === "object" ? (u.city     as {key:number}).key : u.city)     ?? ""),
+          district: String((u.district && typeof u.district === "object" ? (u.district as {key:number}).key : u.district) ?? ""),
+          quarter:  String((u.quarter  && typeof u.quarter  === "object" ? (u.quarter  as {key:number}).key : u.quarter)  ?? ""),
+          address:  u.address  ?? "",
+        });
+        setAddressLabels({
+          city:     (u.city     && typeof u.city     === "object" ? (u.city     as {value:string}).value : String(u.city     ?? "")),
+          district: (u.district && typeof u.district === "object" ? (u.district as {value:string}).value : String(u.district ?? "")),
+          quarter:  (u.quarter  && typeof u.quarter  === "object" ? (u.quarter  as {value:string}).value : String(u.quarter  ?? "")),
+        });
       })
       .catch(() => {});
   }, []);
@@ -55,6 +91,71 @@ export function DashboardHeader() {
   function handleLogout() {
     setMenuOpen(false);
     router.push("/login");
+  }
+
+  function openProfile() {
+    setMenuOpen(false);
+    setProfileOpen(true);
+    const token = localStorage.getItem("access_token");
+    if (!token) return;
+    const h = { Authorization: `Bearer ${token}` };
+    fetch("/api/v1/city", { headers: h }).then((r) => r.json()).then((d) => setCities(toKV(d))).catch(() => {});
+    fetch("/api/v1/district", { headers: h }).then((r) => r.json()).then((d) => setDistricts(toKV(d))).catch(() => {});
+    fetch("/api/v1/quarter", { headers: h }).then((r) => r.json()).then((d) => setQuarters(toKV(d))).catch(() => {});
+  }
+
+  async function handleSave() {
+    const token = localStorage.getItem("access_token");
+    if (!token) return;
+    setSaving(true);
+    setSaveError("");
+    setSaveSuccess(false);
+    try {
+      const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+
+      const { email, ...profileRest } = profileFields;
+      const [profileRes, addressRes, emailRes] = await Promise.all([
+        fetch("/api/v1/user/profile", {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify(profileRest),
+        }),
+        fetch("/api/v1/user/address", {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({
+            city:     addressFields.city     ? Number(addressFields.city)     : undefined,
+            district: addressFields.district ? Number(addressFields.district) : undefined,
+            quarter:  addressFields.quarter  ? Number(addressFields.quarter)  : undefined,
+            address:  addressFields.address,
+          }),
+        }),
+        fetch("/api/v1/user/email", {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({ email }),
+        }),
+      ]);
+
+      if (!profileRes.ok || !addressRes.ok || !emailRes.ok) {
+        const profileErr = !profileRes.ok ? await profileRes.json().catch(() => ({})) : null;
+        const addressErr = !addressRes.ok ? await addressRes.json().catch(() => ({})) : null;
+        const emailErr   = !emailRes.ok   ? await emailRes.json().catch(() => ({}))   : null;
+        if (profileErr) console.error("[profile PATCH error]", profileRes.status, profileErr);
+        if (addressErr) console.error("[address PATCH error]", addressRes.status, addressErr);
+        if (emailErr)   console.error("[email PATCH error]",   emailRes.status,   emailErr);
+        const err = profileErr ?? addressErr ?? emailErr ?? {};
+        setSaveError(err?.error ?? err?.detail ?? JSON.stringify(err) ?? "Хадгалахад алдаа гарлаа");
+      } else {
+        setUser((u) => ({ ...u, ...profileFields, ...addressFields }));
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 3000);
+      }
+    } catch {
+      setSaveError("Хадгалахад алдаа гарлаа");
+    } finally {
+      setSaving(false);
+    }
   }
 
   const toggleTheme = () => {
@@ -130,15 +231,12 @@ export function DashboardHeader() {
               <div className="py-1">
                 <button
                   className="w-full flex items-center gap-3 px-4 py-2 hover:bg-accent transition-colors"
-                  onClick={() => { setMenuOpen(false); setProfileOpen(true); }}
+                  onClick={openProfile}
                 >
                   <UserCircle className="h-4 w-4 text-muted-foreground" />
                   Борлуулагчийн мэдээлэл засах
                 </button>
-                <button className="w-full flex items-center gap-3 px-4 py-2 hover:bg-accent transition-colors">
-                  <Settings className="h-4 w-4 text-muted-foreground" />
-                  Account settings
-                </button>
+               
               </div>
 
               <div className="border-t py-1">
@@ -178,11 +276,11 @@ export function DashboardHeader() {
           <div className="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Нэр</Label>
-              <Input readOnly value={user.first_name ?? ""} />
+              <Input value={profileFields.first_name} onChange={(e) => setProfileFields((f) => ({ ...f, first_name: e.target.value }))} placeholder="Нэр" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Овог</Label>
-              <Input readOnly value={user.last_name ?? ""} />
+              <Input value={profileFields.last_name} onChange={(e) => setProfileFields((f) => ({ ...f, last_name: e.target.value }))} placeholder="Овог" />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
               <Label className="text-xs text-muted-foreground">Байгууллага</Label>
@@ -190,7 +288,7 @@ export function DashboardHeader() {
             </div>
             <div className="space-y-1.5 sm:col-span-2">
               <Label className="text-xs text-muted-foreground">Имэйл</Label>
-              <Input readOnly value={user.email ?? ""} />
+              <Input value={profileFields.email} onChange={(e) => setProfileFields((f) => ({ ...f, email: e.target.value }))} placeholder="Имэйл хаяг" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Нэвтрэх нэр</Label>
@@ -198,7 +296,7 @@ export function DashboardHeader() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Утас</Label>
-              <Input readOnly value={user.phone ?? ""} />
+              <Input value={profileFields.phone} onChange={(e) => setProfileFields((f) => ({ ...f, phone: e.target.value }))} placeholder="Утасны дугаар" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Регистр</Label>
@@ -210,41 +308,83 @@ export function DashboardHeader() {
             </div> */}
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Хот</Label>
-              <Input readOnly value={user.city ?? ""} />
+              <select
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
+                value={addressFields.city}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const label = cities.find((c) => String(c.key) === val)?.value ?? "";
+                  setAddressFields((f) => ({ ...f, city: val, district: "", quarter: "" }));
+                  setAddressLabels((l) => ({ ...l, city: label, district: "", quarter: "" }));
+                }}
+              >
+                <option value="">Хот сонгон уу...</option>
+                {cities.map((c) => <option key={c.key} value={String(c.key)}>{c.value}</option>)}
+              </select>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Дүүрэг</Label>
-              <Input readOnly value={user.district ?? ""} />
+              <select
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
+                value={addressFields.district}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const label = districts.find((d) => String(d.key) === val)?.value ?? "";
+                  setAddressFields((f) => ({ ...f, district: val, quarter: "" }));
+                  setAddressLabels((l) => ({ ...l, district: label, quarter: "" }));
+                }}
+              >
+                <option value="">Дүүрэг сонгон уу...</option>
+                {districts.map((d) => <option key={d.key} value={String(d.key)}>{d.value}</option>)}
+              </select>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Хороо</Label>
-              <Input readOnly value={user.quarter ?? ""} />
+              <select
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
+                value={addressFields.quarter}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const label = quarters.find((q) => String(q.key) === val)?.value ?? "";
+                  setAddressFields((f) => ({ ...f, quarter: val }));
+                  setAddressLabels((l) => ({ ...l, quarter: label }));
+                }}
+              >
+                <option value="">Хороо сонгон уу...</option>
+                {quarters.map((q) => <option key={q.key} value={String(q.key)}>{q.value}</option>)}
+              </select>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Хаяг</Label>
-              <Input readOnly value={user.address ?? ""} />
+              <Input value={addressFields.address} onChange={(e) => setAddressFields((f) => ({ ...f, address: e.target.value }))} placeholder="Хаяг" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Бүртгүүлсэн огноо</Label>
               <Input readOnly value={user.date_joined ? new Date(user.date_joined as string).toLocaleString() : ""} />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Сүүлд нэвтэрсэн</Label>
-              <Input readOnly value={user.last_login ? new Date(user.last_login as string).toLocaleString() : ""} />
-            </div>
+           
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Идэвхтэй эсэх</Label>
               <Input readOnly value={user.is_active ? "Тийм" : "Үгүй"} />
             </div>
           </div>
 
-          <div className="px-6 pb-5">
-            <Button
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-              onClick={() => setProfileOpen(false)}
-            >
-              Хаах
-            </Button>
+          <div className="px-6 pb-5 space-y-3">
+            {saveError && <p className="text-sm text-red-500">{saveError}</p>}
+            {saveSuccess && <p className="text-sm text-emerald-600">Амжилттай хадгаллаа</p>}
+            <div className="flex gap-3">
+              <Button
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={handleSave}
+                disabled={saving}
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                Хадгалах
+              </Button>
+              <Button variant="outline" className="flex-1" onClick={() => setProfileOpen(false)}>
+                Хаах
+              </Button>
+            </div>
           </div>
         </div>
       </div>

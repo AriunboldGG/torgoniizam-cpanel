@@ -308,12 +308,20 @@ export default function ProductListPage() {
           : Array.isArray(data?.data) ? data.data
           : Array.isArray(data?.results) ? data.results
           : [];
-        setChildCategories(
-          arr.map((item: any) => ({
+        const sorted = arr
+          .map((item: any) => ({
             key: Number(item.id ?? item.key ?? 0),
             value: String(item.name ?? item.value ?? "")
-          })).filter((c: any) => c.key > 0 && c.value)
-        );
+          }))
+          .filter((c: any) => c.key > 0 && c.value)
+          .sort((a: any, b: any) => {
+            const aOther = a.value.toLowerCase().includes("бусад");
+            const bOther = b.value.toLowerCase().includes("бусад");
+            if (aOther && !bOther) return 1;
+            if (!aOther && bOther) return -1;
+            return 0;
+          });
+        setChildCategories(sorted);
       })
       .catch(() => setChildCategories([]));
   }, [selectedParent]);
