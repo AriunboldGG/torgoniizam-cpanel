@@ -193,10 +193,10 @@ export function DashboardHeader() {
         <Button variant="ghost" size="icon" onClick={toggleTheme}>
           {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </Button>
-        <Button variant="ghost" size="icon" className="relative">
+        {/* <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-4 w-4" />
           <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500" />
-        </Button>
+        </Button> */}
 
         {/* User menu */}
         <div className="relative" ref={menuRef}>
@@ -204,12 +204,12 @@ export function DashboardHeader() {
             onClick={() => setMenuOpen((o) => !o)}
             className="flex items-center gap-2 rounded-full border px-2 py-1 hover:bg-muted/50 transition-colors"
           >
-            <Avatar className="h-6 w-6">
+            {/* <Avatar className="h-6 w-6">
               {user.avatar && <AvatarImage src={user.avatar} alt={user.first_name ?? user.username ?? ""} />}
               <AvatarFallback className="text-xs">
                 {(user.first_name ?? user.username ?? "?").slice(0, 2).toUpperCase()}
               </AvatarFallback>
-            </Avatar>
+            </Avatar> */}
             <span className="text-sm font-medium hidden sm:block">
               {user.first_name ?? user.username ?? "..."}
             </span>

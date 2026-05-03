@@ -97,7 +97,7 @@ export default function LoginPage() {
                     <div className="flex items-center">
                       <Label htmlFor="password">Нууц үг</Label>
                       <a
-                        href="#"
+                        href="/forgot-password"
                         className="ml-auto text-xs underline-offset-4 hover:underline text-muted-foreground"
                       >
                         Нууц үг мартсан?
